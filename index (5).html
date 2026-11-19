@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitoring Potensi Energi Terbarukan</title>
+  <meta name="description" content="Dashboard pembacaan angin, hujan, dan cahaya dari trainer kit ESP32 Kelompok 12 Polinela.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="pita">
+<header class="kepala">
+  <div class="kepala-judul">
+    <h1>Monitoring Potensi Energi Terbarukan</h1>
+    <p>Trainer kit ESP32, Kelompok 12 Polinela</p>
+  </div>
+  <div class="status" id="status" data-keadaan="menunggu" role="status">
+    <span class="status-titik" aria-hidden="true"></span>
+    <span id="status-teks">Menghubungkan ke Firebase</span>
+  </div>
+</header>
+
+<nav class="tab" role="tablist" aria-label="Bagian dashboard">
+  <button role="tab" id="tab-live" data-tab="live" aria-controls="panel-live" aria-selected="true">Live</button>
+  <button role="tab" id="tab-grafik" data-tab="grafik" aria-controls="panel-grafik" aria-selected="false">Grafik</button>
+  <button role="tab" id="tab-histori" data-tab="histori" aria-controls="panel-histori" aria-selected="false">Histori</button>
+</nav>
+</div>
+
+<div class="peringatan" id="peringatan" hidden></div>
+
+<main>
+
+  <!-- ================= LIVE ================= -->
+  <section id="panel-live" role="tabpanel" aria-labelledby="tab-live">
+    <div class="lembar instrumen-grid">
+
+      <article class="instrumen" data-sensor="angin">
+        <canvas class="adegan" id="adegan-angin" aria-hidden="true"></canvas>
+        <h2>Kecepatan angin</h2>
+        <p class="nilai"><span id="nilai-angin">–</span> <span class="satuan">m/s</span></p>
+        <p class="kategori" id="kategori-angin">Menunggu data dari alat</p>
+        <div class="skala" id="skala-angin"></div>
+        <p class="catatan" id="catatan-angin">Kecepatan baling-baling di gambar mengikuti angin. Turbin angin kecil umumnya mulai berputar di sekitar 3 m/s.</p>
+        <h3>15 menit terakhir</h3>
+        <div id="grafik-live-angin"></div>
+      </article>
+
+      <article class="instrumen" data-sensor="hujan">
+        <canvas class="adegan" id="adegan-hujan" aria-hidden="true"></canvas>
+        <h2>Curah hujan hari ini</h2>
+        <p class="nilai"><span id="nilai-hujan">–</span> <span class="satuan">mm</span></p>
+        <p class="kategori" id="kategori-hujan">Menunggu data dari alat</p>
+        <div class="skala" id="skala-hujan"></div>
+        <p class="catatan">Kategori hujan harian BMKG. Tetesan di gambar muncul saat hujan sedang tercatat, tabung menunjukkan total hari ini.</p>
+        <h3>15 menit terakhir</h3>
+        <div id="grafik-live-hujan"></div>
+      </article>
+
+      <article class="instrumen" data-sensor="cahaya">
+        <canvas class="adegan" id="adegan-cahaya" aria-hidden="true"></canvas>
+        <h2>Intensitas cahaya</h2>
+        <p class="nilai"><span id="nilai-cahaya">–</span> <span class="satuan">lux</span></p>
+        <p class="kategori" id="kategori-cahaya">Menunggu data dari alat</p>
+        <div class="skala" id="skala-cahaya"></div>
+        <p class="catatan">Langit dan matahari di gambar mengikuti terang cahaya. Matahari langsung di atas 32.000 lux.</p>
+        <h3>15 menit terakhir</h3>
+        <div id="grafik-live-cahaya"></div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============ SARINGAN (Grafik & Histori) ============ -->
+  <form class="saring" id="saring" hidden>
+    <div class="saring-cepat" role="group" aria-label="Rentang cepat">
+      <button type="button" data-cepat="0">Hari ini</button>
+      <button type="button" data-cepat="1">Kemarin</button>
+      <button type="button" data-cepat="7">7 hari</button>
+      <button type="button" data-cepat="30">30 hari</button>
+    </div>
+    <label>Dari <input type="date" id="tgl-dari" required></label>
+    <label>Sampai <input type="date" id="tgl-sampai" required></label>
+    <label>Tampilkan per
+      <select id="mode">
+        <option value="auto">Otomatis</option>
+        <option value="asli">Data asli (per menit)</option>
+        <option value="jam">Jam</option>
+        <option value="hari">Hari</option>
+      </select>
+    </label>
+    <button type="submit" class="utama">Tampilkan</button>
+    <p class="saring-info" id="saring-info" aria-live="polite"></p>
+  </form>
+
+  <!-- ================= GRAFIK ================= -->
+  <section id="panel-grafik" role="tabpanel" aria-labelledby="tab-grafik" hidden>
+    <div class="lembar">
+      <div class="blok-grafik" data-sensor="angin">
+        <div class="blok-kepala">
+          <h2>Kecepatan angin <span class="satuan-judul">m/s</span></h2>
+          <dl class="ringkas" id="ringkas-angin"></dl>
+        </div>
+        <div id="grafik-angin"></div>
+      </div>
+      <div class="blok-grafik" data-sensor="hujan">
+        <div class="blok-kepala">
+          <h2 id="judul-hujan">Curah hujan <span class="satuan-judul">mm</span></h2>
+          <dl class="ringkas" id="ringkas-hujan"></dl>
+        </div>
+        <div id="grafik-hujan"></div>
+      </div>
+      <div class="blok-grafik" data-sensor="cahaya">
+        <div class="blok-kepala">
+          <h2>Intensitas cahaya <span class="satuan-judul">lux</span></h2>
+          <dl class="ringkas" id="ringkas-cahaya"></dl>
+        </div>
+        <div id="grafik-cahaya"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORI ================= -->
+  <section id="panel-histori" role="tabpanel" aria-labelledby="tab-histori" hidden>
+    <div class="lembar">
+      <div class="tabel-alat">
+        <p id="tabel-info">Belum ada data.</p>
+        <div class="tabel-tombol">
+          <button type="button" id="unduh-csv">Unduh CSV</button>
+          <button type="button" id="hapus-buka" class="bahaya" disabled>Hapus data</button>
+        </div>
+      </div>
+      <div class="tabel-gulung">
+        <table>
+          <thead id="tabel-kepala"></thead>
+          <tbody id="tabel-isi"></tbody>
+        </table>
+      </div>
+      <div class="halaman">
+        <button type="button" id="hal-sebelum">Sebelumnya</button>
+        <span id="hal-info">Halaman 1 dari 1</span>
+        <button type="button" id="hal-berikut">Berikutnya</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ DIALOG HAPUS DATA ============ -->
+<dialog id="dlg-hapus" aria-labelledby="dlg-judul">
+  <form id="form-hapus">
+    <h2 id="dlg-judul">Hapus data histori</h2>
+    <p id="dlg-ringkas">Menghitung data pada rentang ini…</p>
+    <p class="dlg-awas">Data yang sudah dihapus tidak bisa dikembalikan. Unduh CSV dulu kalau datanya masih diperlukan.</p>
+
+    <fieldset id="dlg-masuk">
+      <legend>Masuk dengan akun Firebase</legend>
+      <label>Email <input type="email" id="dlg-email" autocomplete="username"></label>
+      <label>Password <input type="password" id="dlg-sandi" autocomplete="current-password"></label>
+    </fieldset>
+    <p id="dlg-akun" hidden>Masuk sebagai <b id="dlg-akun-email"></b>.
+      <button type="button" id="dlg-keluar" class="tautan">Keluar</button></p>
+
+    <label class="dlg-ketik">Ketik <b>HAPUS</b> untuk memastikan
+      <input type="text" id="dlg-ketik" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    </label>
+
+    <p id="dlg-pesan" role="alert"></p>
+
+    <div class="dlg-tombol">
+      <button type="button" id="dlg-batal">Batal</button>
+      <button type="submit" id="dlg-hapus-ya" class="bahaya-isi" disabled>Hapus data</button>
+    </div>
+  </form>
+</dialog>
+
+<footer class="kaki">
+  <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

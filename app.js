@@ -60,7 +60,14 @@ const SENSOR = {
     lebih: "Matahari langsung"
   }
 };
+// Bukan sensor: dipakai grafik "Jumlah data tercatat"
+SENSOR.data = { kunci: null, satuan: "data", desimal: 0, warna: "var(--seri-data)" };
+
 const DAFTAR = ["angin", "hujan", "cahaya"];
+const DAFTAR_GRAFIK = [...DAFTAR, "data"];
+
+// Kenaikan hujan lebih dari ini per menit dianggap gangguan (noise kabel), bukan hujan
+const BATAS_HUJAN_PER_MENIT = 10;   // mm
 
 // ===== ALAT BANTU WAKTU & ANGKA =====
 // Semua waktu disimpan sebagai "jam dinding WIB" dalam milidetik
@@ -244,7 +251,9 @@ function buatGrafik(el, opsi) {
       const xs = fx(kini);
       buat("rect", { class: "nanti", x: xs, y: M.t, width: Math.max(0, lebar - M.r - xs), height: ph });
       buat("line", { class: "sekarang", x1: xs, x2: xs, y1: M.t, y2: M.t + ph });
-      buat("text", { class: "sekarang-teks", x: xs + 6, y: M.t + 12 }).textContent = "Sekarang";
+      const muatKanan = xs + 62 < lebar - M.r;
+      buat("text", { class: "sekarang-teks", x: muatKanan ? xs + 6 : xs - 6, y: M.t + 12,
+                     "text-anchor": muatKanan ? "start" : "end" }).textContent = "Sekarang";
     }
 
     // --- isi
@@ -267,7 +276,8 @@ function buatGrafik(el, opsi) {
       const lb = Math.max(2, Math.min(34, (o.ember / (t1 - t0)) * pw - 2));
       for (const d of data) {
         if (d.v <= 0) continue;
-        const xc = fx(d.t + o.ember / 2), y = fy(d.v), h = dasar - y, r = Math.min(4, lb / 2, h);
+        const h = Math.max(2, dasar - fy(d.v)), y = dasar - h;
+        const xc = fx(d.t + o.ember / 2), r = Math.min(4, lb / 2, h);
         buat("path", {
           fill: `url(#${id}b)`,
           d: `M${xc - lb / 2},${dasar} V${y + r} q0,${-r} ${r},${-r} H${xc + lb / 2 - r} q${r},0 ${r},${r} V${dasar} Z`
@@ -284,12 +294,12 @@ function buatGrafik(el, opsi) {
       potongan.push(kini2);
 
       // data per menit yang rapat: garis asli dibuat tipis, ditambah garis tren yang halus
-      const pakaiTren = o.jenis === "garis" && data.length > 150;
+      const pakaiTren = o.tren && o.jenis === "garis" && data.length > 150;
       const jendela = Math.max(5, Math.round(data.length / 90));
 
       for (const seg of potongan) {
         if (seg.length === 1) {
-          buat("circle", { cx: fx(seg[0].t), cy: fy(seg[0].v), r: 2.5, fill: S.warna });
+          buat("circle", { class: "titik", cx: fx(seg[0].t), cy: fy(seg[0].v), r: 4, fill: S.warna });
           continue;
         }
         const titik = seg.map(d => [fx(d.t), fy(d.v)]);
@@ -403,40 +413,58 @@ function peringatan(id, teks, jenis = "") {
 // ============================================================
 // ANIMASI ADEGAN
 // Gambar di atas tiap pembacaan Live, digerakkan oleh angka sensor:
-//  - angin  : kecepatan baling-baling turbin dan garis angin
-//  - hujan  : banyak tetesan = laju hujan 10 menit terakhir, tabung = total hari ini
-//  - cahaya : warna langit (malam, senja, siang), besar sinar matahari, kilau panel surya
+//  - angin  : putaran baling-baling, garis hembusan, awan, dan rumput bergoyang
+//  - hujan  : banyak tetesan & riak = laju hujan 10 menit terakhir, isi penakar = total hari ini
+//  - cahaya : tinggi & warna matahari (atau bulan), kilau panel surya,
+//             aliran energi di kabel dan isi baterai
 // Warna langit di ketiga gambar ikut nilai cahaya, jadi malam hari semuanya gelap.
 // ============================================================
 
 const adegan = (() => {
   const gerakKurang = matchMedia("(prefers-reduced-motion: reduce)");
   const k = { angin: 0, hujan: 0, cahaya: 0, laju: 0, ada: false, lajuPaksa: null };
-  const animasi = { sudut: 0, geser: 0, waktu: 0 };
+  const anim = { sudut: 0, waktu: 0, awanAngin: 0, awanHujan: 0 };
   let berjalan = false, lalu = 0, hitungLajuTerakhir = 0;
 
   const acak = (() => { let x = 7; return () => (x = (x * 16807) % 2147483647) / 2147483647; })();
-  const garisAngin = Array.from({ length: 16 }, () => ({ x: acak(), y: 0.08 + acak() * 0.55, p: 0.5 + acak() * 0.8 }));
-  const tetes      = Array.from({ length: 170 }, () => ({ x: acak(), y: acak(), v: 0.75 + acak() * 0.5 }));
-  const bintang    = Array.from({ length: 26 },  () => ({ x: acak(), y: acak() * 0.62, r: 0.6 + acak() * 1.1 }));
+  const hembusan = Array.from({ length: 12 },  () => ({ x: acak() * 1.3 - 0.15, y: 0.1 + acak() * 0.4, p: 0.6 + acak() * 0.7 }));
+  const tetes    = Array.from({ length: 150 }, () => ({ x: acak(), y: acak(), v: 0.75 + acak() * 0.5 }));
+  const bintang  = Array.from({ length: 30 },  () => ({ x: acak(), y: acak() * 0.55, r: 0.5 + acak() * 1.1 }));
+  const rumput   = Array.from({ length: 46 },  () => ({ x: acak(), h: 3 + acak() * 5, f: acak() * 6 }));
+  const riak     = [];
+  const awanAngin = [{ x: 0.08, y: 0.22, s: 0.75 }, { x: 0.6, y: 0.3, s: 0.55 }];
+  const awanHujan = [
+    { x: 0.02, y: 0.26, s: 1.15, depan: false }, { x: 0.4, y: 0.2, s: 1.05, depan: false },
+    { x: 0.74, y: 0.27, s: 0.95, depan: false }, { x: 0.22, y: 0.35, s: 0.9, depan: true },
+    { x: 0.58, y: 0.37, s: 1.0, depan: true }
+  ];
+  const energi = [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6];
 
   const campur = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
   const rgb = (c, al = 1) => `rgba(${c.map(Math.round).join(",")},${al})`;
   const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   const jepit = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lerp = (P, Q, u) => [P[0] + (Q[0] - P[0]) * u, P[1] + (Q[1] - P[1]) * u];
 
-  const MALAM = [hex("#0b1d3a"), hex("#1d3c68")];
-  const SENJA = [hex("#2f64b5"), hex("#ff9a6b")];
-  const SIANG = [hex("#0099ff"), hex("#8fd2ff")];
-  const PUTIH = hex("#fdfdfe");
-  const AMBER = hex("#ff3b1a");
+  const PUTIH = hex("#ffffff"), AMBER = hex("#ff3b1a"), HITAM = hex("#0a1a22");
+  const LANGIT = {
+    malam: [hex("#0b1d3a"), hex("#21416e")],
+    senja: [hex("#3b5fa6"), hex("#f5a882")],
+    siang: [hex("#0b93f5"), hex("#a3daff")]
+  };
+  const BUKIT_JAUH  = [hex("#1c3447"), hex("#9fd9b0")];   // malam, siang
+  const BUKIT_DEKAT = [hex("#122d2b"), hex("#5cb97f")];
 
   // 0 = malam, 1 = siang penuh (20.000 lux ke atas)
   const terang = () => k.ada ? jepit(Math.log10(k.cahaya + 1) / Math.log10(20001)) : 0.85;
 
   function warnaLangit(t) {
-    return t < 0.5 ? [0, 1].map(i => campur(MALAM[i], SENJA[i], t / 0.5))
-                   : [0, 1].map(i => campur(SENJA[i], SIANG[i], (t - 0.5) / 0.5));
+    return t < 0.5 ? [0, 1].map(i => campur(LANGIT.malam[i], LANGIT.senja[i], t / 0.5))
+                   : [0, 1].map(i => campur(LANGIT.senja[i], LANGIT.siang[i], (t - 0.5) / 0.5));
+  }
+  function hijau(pal, t, kelabu = 0) {
+    let c = campur(pal[0], pal[1], jepit(t * 1.15));
+    return kelabu ? campur(c, hex("#4f6068"), kelabu) : c;
   }
 
   function siapkan(id) {
@@ -449,89 +477,150 @@ const adegan = (() => {
     }
     const c = cv.getContext("2d");
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.lineCap = "round"; c.lineJoin = "round";
     return { c, w, h };
   }
 
-  function langit(c, w, h, t, gelap = 0) {
+  function langit(c, w, h, t, kelabu = 0) {
     let [atas, bawah] = warnaLangit(t);
-    if (gelap) { const abu = hex("#5d6f86"); atas = campur(atas, abu, gelap); bawah = campur(bawah, abu, gelap); }
+    if (kelabu) { const abu = hex("#5d6f86"); atas = campur(atas, abu, kelabu); bawah = campur(bawah, abu, kelabu); }
     const g = c.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, rgb(atas)); g.addColorStop(1, rgb(bawah));
     c.fillStyle = g; c.fillRect(0, 0, w, h);
-    const tampakBintang = jepit(1 - t / 0.35);
+    const tampakBintang = jepit(1 - t / 0.35) * (1 - kelabu);
     if (tampakBintang > 0) {
       for (const b of bintang) {
-        const kedip = 0.6 + 0.4 * Math.sin(animasi.waktu * 1.7 + b.x * 40);
-        c.fillStyle = rgb(PUTIH, tampakBintang * kedip * 0.9);
+        const kedip = 0.55 + 0.45 * Math.sin(anim.waktu * 1.6 + b.x * 40);
+        c.fillStyle = rgb(PUTIH, tampakBintang * kedip * 0.85);
         c.beginPath(); c.arc(b.x * w, b.y * h, b.r, 0, 7); c.fill();
       }
     }
     return { atas, bawah };
   }
 
-  function bukit(c, w, h, t, tinggi, warna, al) {
-    c.fillStyle = rgb(warna, al);
+  const yBukit = (x, w, y0, amp, fase, frek) => y0 - Math.sin((x / w) * Math.PI * frek + fase) * amp;
+
+  function bukit(c, w, h, y0, amp, fase, frek, warna) {
+    const g = c.createLinearGradient(0, y0 - amp, 0, h);
+    g.addColorStop(0, rgb(warna)); g.addColorStop(1, rgb(campur(warna, HITAM, 0.22)));
+    c.fillStyle = g;
     c.beginPath(); c.moveTo(0, h);
-    for (let x = 0; x <= w; x += 8) c.lineTo(x, h - tinggi - Math.sin(x / w * Math.PI * 1.3 + tinggi) * tinggi * 0.35);
-    c.lineTo(w, h); c.closePath(); c.fill();
+    for (let x = 0; x <= w; x += 4) c.lineTo(x, yBukit(x, w, y0, amp, fase, frek));
+    c.lineTo(w, yBukit(w, w, y0, amp, fase, frek)); c.lineTo(w, h); c.closePath(); c.fill();
   }
 
-  const warnaTanah = t => campur(hex("#17345a"), hex("#cfe6fb"), jepit(t * 1.2));
-
-  function turbin(c, x, yDasar, tinggiMenara, skala, sudut, t) {
-    const badan = campur(hex("#b9c9dc"), PUTIH, t);
-    const atas = yDasar - tinggiMenara;
-    c.fillStyle = rgb(badan);
+  function awan(c, x, y, s, warna, al = 1) {
+    const g = c.createLinearGradient(0, y - 24 * s, 0, y + 11 * s);
+    g.addColorStop(0, rgb(warna, al));
+    g.addColorStop(1, rgb(campur(warna, hex("#6b7f99"), 0.25), al));
+    c.fillStyle = g;
     c.beginPath();
-    c.moveTo(x - 4 * skala, yDasar); c.lineTo(x - 1.6 * skala, atas);
-    c.lineTo(x + 1.6 * skala, atas); c.lineTo(x + 4 * skala, yDasar); c.closePath(); c.fill();
-    const panjang = tinggiMenara * 0.62;
+    for (const [dx, dy, r] of [[0, 0, 11], [14, -9, 15], [31, -6, 12], [43, 0, 10]]) {
+      c.moveTo(x + (dx + r) * s, y + dy * s);
+      c.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2);
+    }
+    c.roundRect(x - 11 * s, y - 3 * s, 64 * s, 14 * s, 7 * s);
+    c.fill();
+  }
+
+  function geserAwan(a, w, geser) {
+    const lebar = w + 150;
+    return ((a.x * lebar + geser) % lebar + lebar) % lebar - 95;
+  }
+
+  // ---------------- ANGIN ----------------
+
+  function turbin(c, x, yDasar, tinggi, s, sudut, t, kabut = null) {
+    let terangT = campur(hex("#a9bacb"), PUTIH, t), gelapT = campur(hex("#76899e"), hex("#cfdbe7"), t);
+    if (kabut) { terangT = campur(terangT, kabut.warna, kabut.k); gelapT = campur(gelapT, kabut.warna, kabut.k); }
+    const atas = yDasar - tinggi;
+
+    const g = c.createLinearGradient(x - 4 * s, 0, x + 4 * s, 0);
+    g.addColorStop(0, rgb(terangT)); g.addColorStop(1, rgb(gelapT));
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(x - 3.6 * s, yDasar); c.lineTo(x - 1.4 * s, atas);
+    c.lineTo(x + 1.4 * s, atas); c.lineTo(x + 3.6 * s, yDasar); c.closePath(); c.fill();
+
+    c.fillStyle = rgb(terangT);
+    c.beginPath(); c.roundRect(x - 2.6 * s, atas - 2.8 * s, 8.5 * s, 5.6 * s, 2.6 * s); c.fill();
+
+    const pj = tinggi * 0.6;
+    c.strokeStyle = rgb(gelapT, 0.8); c.lineWidth = 0.6;
     for (let i = 0; i < 3; i++) {
       c.save(); c.translate(x, atas); c.rotate(sudut + i * (Math.PI * 2 / 3));
       c.beginPath();
-      c.moveTo(0, -2.6 * skala);
-      c.quadraticCurveTo(panjang * 0.35, -5.5 * skala, panjang, -0.6 * skala);
-      c.lineTo(panjang, 0.6 * skala);
-      c.quadraticCurveTo(panjang * 0.35, 2.2 * skala, 0, 2.6 * skala);
-      c.closePath(); c.fill();
+      c.moveTo(0, -2.6 * s);
+      c.quadraticCurveTo(pj * 0.3, -6 * s, pj, -0.7 * s);
+      c.lineTo(pj, 0.5 * s);
+      c.quadraticCurveTo(pj * 0.35, 2.2 * s, 0, 2.6 * s);
+      c.closePath(); c.fill(); c.stroke();
       c.restore();
     }
     c.fillStyle = rgb(AMBER);
-    c.beginPath(); c.arc(x, atas, 3.6 * skala, 0, 7); c.fill();
+    c.beginPath(); c.arc(x, atas, 3.3 * s, 0, 7); c.fill();
+    c.fillStyle = "rgba(255,255,255,0.75)";
+    c.beginPath(); c.arc(x - 1 * s, atas - 1 * s, 1.1 * s, 0, 7); c.fill();
   }
 
   function gambarAngin(dt) {
     const s = siapkan("adegan-angin"); if (!s) return;
-    const { c, w, h } = s, t = terang();
-    langit(c, w, h, t);
-    const v = k.angin;
+    const { c, w, h } = s, t = terang(), v = k.angin;
+    const { bawah } = langit(c, w, h, t);
 
-    // garis angin: makin kencang makin banyak dan cepat
-    const banyak = Math.round(jepit(v / 7) * garisAngin.length);
-    c.strokeStyle = rgb(PUTIH, 0.7); c.lineWidth = 1.6; c.lineCap = "round";
-    for (let i = 0; i < banyak; i++) {
-      const g = garisAngin[i];
-      g.x += dt * (0.05 + v * 0.045) * g.p;
-      if (g.x > 1.15) { g.x = -0.15; g.y = 0.08 + acak() * 0.55; }
-      const panjang = (14 + v * 5) * g.p, x = g.x * w, y = g.y * h;
-      c.beginPath(); c.moveTo(x - panjang, y);
-      c.quadraticCurveTo(x - panjang * 0.4, y - 3, x, y); c.stroke();
+    // awan ikut terbawa angin
+    anim.awanAngin += dt * (3 + v * 7);
+    const warnaAwan = campur(PUTIH, hex("#2a4366"), jepit(1 - t * 1.4) * 0.65);
+    for (const a of awanAngin) awan(c, geserAwan(a, w, anim.awanAngin * (0.6 + a.s * 0.6)), a.y * h, a.s * h / 150, warnaAwan, 0.92);
+
+    // bukit jauh + turbin kecil (sedikit pudar karena jauh)
+    const bj = hijau(BUKIT_JAUH, t);
+    bukit(c, w, h, h * 0.74, h * 0.07, 0.4, 1.4, bj);
+    const x1 = w * 0.24;
+    turbin(c, x1, yBukit(x1, w, h * 0.74, h * 0.07, 0.4, 1.4) + 2, h * 0.34, 0.68, anim.sudut * 0.9 + 0.7, t, { warna: bawah, k: 0.28 });
+
+    // bukit dekat + turbin besar
+    const bd = hijau(BUKIT_DEKAT, t);
+    const yDekat = x => yBukit(x, w, h * 0.9, h * 0.06, 2.2, 1.1);
+    bukit(c, w, h, h * 0.9, h * 0.06, 2.2, 1.1, bd);
+    const x2 = w * 0.64;
+    turbin(c, x2, yDekat(x2) + 2, h * 0.58, 1.05, anim.sudut, t);
+
+    // rumput bergoyang mengikuti angin
+    c.strokeStyle = rgb(campur(bd, HITAM, 0.28)); c.lineWidth = 1.3;
+    c.beginPath();
+    for (const r of rumput) {
+      const x = r.x * w, y = yDekat(x) + 1.5;
+      const goyang = Math.sin(anim.waktu * (1.6 + v * 0.3) + r.f) * (0.6 + v * 0.25) + v * 0.55;
+      c.moveTo(x, y); c.lineTo(x + goyang, y - r.h);
     }
+    c.stroke();
 
-    const tanah = warnaTanah(t);
-    bukit(c, w, h, t, h * 0.2, tanah, 0.45);
-    turbin(c, w * 0.26, h * 0.86, h * 0.36, 0.7, animasi.sudut * 0.85 + 0.6, t);
-    bukit(c, w, h, t, h * 0.11, tanah, 1);
-    turbin(c, w * 0.64, h * 0.95, h * 0.58, 1.05, animasi.sudut, t);
+    // garis hembusan: makin kencang makin banyak, panjang, dan cepat
+    const banyak = Math.round(jepit(v / 7) * hembusan.length);
+    c.lineWidth = 1.7;
+    for (let i = 0; i < banyak; i++) {
+      const g = hembusan[i];
+      g.x += dt * (0.05 + v * 0.045) * g.p;
+      if (g.x > 1.2) { g.x = -0.2; g.y = 0.1 + acak() * 0.4; }
+      const pj = (16 + v * 5) * g.p, x = g.x * w, y = g.y * h;
+      const ekor = c.createLinearGradient(x - pj, 0, x, 0);
+      ekor.addColorStop(0, "rgba(255,255,255,0)");
+      ekor.addColorStop(1, "rgba(255,255,255,0.8)");
+      c.strokeStyle = ekor;
+      c.beginPath(); c.moveTo(x - pj, y + 2); c.quadraticCurveTo(x - pj * 0.45, y - 3, x, y); c.stroke();
+    }
   }
+
+  // ---------------- HUJAN ----------------
 
   function hitungLaju() {
     if (k.lajuPaksa !== null) return k.lajuPaksa;
     const seri = live.hujan;
     if (seri.length < 2) return 0;
     const akhir = seri[seri.length - 1], batas = akhir.t - 10 * MENIT;
-    let awal = seri.find(d => d.t >= batas) || seri[0];
-    let naik = akhir.v >= awal.v ? akhir.v - awal.v : akhir.v;   // angka sempat di-nol-kan
+    const awal = seri.find(d => d.t >= batas) || seri[0];
+    const naik = akhir.v >= awal.v ? akhir.v - awal.v : akhir.v;   // angka sempat di-nol-kan
     const lama = Math.max(MENIT, akhir.t - awal.t);
     let laju = naik * (10 * MENIT / lama);
     // tip yang baru saja masuk (1,5 menit terakhir) tetap terlihat sebagai gerimis
@@ -541,14 +630,48 @@ const adegan = (() => {
     return laju;
   }
 
-  function awan(c, x, y, s, warna) {
-    c.fillStyle = rgb(warna);
+  function penakar(c, gx, yDasar, yAtas, t, kuat) {
+    const lebar = 16, kiri = gx - lebar / 2, bawahKaca = yDasar - 4, tinggiKaca = bawahKaca - yAtas;
+
+    c.fillStyle = rgb(campur(hex("#3e5064"), hex("#8fa3b8"), t));
+    c.beginPath(); c.roundRect(kiri - 3, yDasar - 4, lebar + 6, 5, 2); c.fill();
+
+    const kaca = c.createLinearGradient(kiri, 0, kiri + lebar, 0);
+    kaca.addColorStop(0, "rgba(255,255,255,0.38)");
+    kaca.addColorStop(0.5, "rgba(255,255,255,0.12)");
+    kaca.addColorStop(1, "rgba(255,255,255,0.3)");
+    c.fillStyle = kaca;
+    c.beginPath(); c.roundRect(kiri, yAtas, lebar, tinggiKaca, [0, 0, 4, 4]); c.fill();
+
+    const isi = jepit(k.hujan / 50);
+    if (isi > 0) {
+      const tinggiAir = Math.max(2, (tinggiKaca - 2) * isi), yAir = bawahKaca - 1 - tinggiAir;
+      const air = c.createLinearGradient(0, yAir, 0, bawahKaca);
+      air.addColorStop(0, "#6cc0ff"); air.addColorStop(1, "#1f66c9");
+      c.fillStyle = air;
+      c.beginPath(); c.roundRect(kiri + 1.5, yAir, lebar - 3, tinggiAir, [0, 0, 3, 3]); c.fill();
+      const ombak = kuat > 0 ? Math.sin(anim.waktu * 6) * 0.8 : 0;
+      c.strokeStyle = "rgba(255,255,255,0.7)"; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(kiri + 2.5, yAir + 0.5 + ombak); c.lineTo(kiri + lebar - 2.5, yAir + 0.5 - ombak); c.stroke();
+    }
+
+    c.strokeStyle = "rgba(255,255,255,0.75)"; c.lineWidth = 1;
+    for (let mm = 10; mm <= 50; mm += 10) {
+      const y = bawahKaca - 1 - (tinggiKaca - 2) * (mm / 50);
+      c.beginPath(); c.moveTo(kiri + 1.5, y); c.lineTo(kiri + (mm % 50 ? 4.5 : 7), y); c.stroke();
+    }
+    c.strokeStyle = "rgba(255,255,255,0.95)"; c.lineWidth = 1.5;
+    c.beginPath(); c.roundRect(kiri, yAtas, lebar, tinggiKaca, [0, 0, 4, 4]); c.stroke();
+
+    const corong = c.createLinearGradient(gx - 13, 0, gx + 13, 0);
+    corong.addColorStop(0, rgb(campur(hex("#7b8ea3"), hex("#f2f6fa"), t)));
+    corong.addColorStop(1, rgb(campur(hex("#56687c"), hex("#b9c6d4"), t)));
+    c.fillStyle = corong;
     c.beginPath();
-    c.arc(x, y, 14 * s, Math.PI * 0.5, Math.PI * 1.5);
-    c.arc(x + 14 * s, y - 10 * s, 15 * s, Math.PI, Math.PI * 1.85);
-    c.arc(x + 34 * s, y - 6 * s, 13 * s, Math.PI * 1.2, Math.PI * 1.95);
-    c.arc(x + 46 * s, y, 14 * s, Math.PI * 1.5, Math.PI * 0.5);
-    c.closePath(); c.fill();
+    c.moveTo(gx - 13, yAtas - 9); c.lineTo(gx + 13, yAtas - 9);
+    c.lineTo(kiri + lebar, yAtas); c.lineTo(kiri, yAtas); c.closePath(); c.fill();
+    c.strokeStyle = "rgba(255,255,255,0.9)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(gx - 13, yAtas - 9); c.lineTo(gx + 13, yAtas - 9); c.stroke();
   }
 
   function gambarHujan(dt) {
@@ -558,125 +681,235 @@ const adegan = (() => {
     if (now - hitungLajuTerakhir > 1000) { k.laju = hitungLaju(); hitungLajuTerakhir = now; }
     const kuat = k.laju <= 0 ? 0 : jepit(0.18 + Math.log10(1 + k.laju) / Math.log10(1 + 8) * 0.82);
 
-    langit(c, w, h, t, kuat * 0.55);
-    const tanah = warnaTanah(t);
-    const yTanah = h * 0.88;
+    langit(c, w, h, t, kuat * 0.6);
+    bukit(c, w, h, h * 0.8, h * 0.05, 1.0, 1.6, hijau(BUKIT_JAUH, t, kuat * 0.45));
 
-    // tetesan
+    // awan: makin lebat makin abu-abu dan makin cepat bergerak
+    anim.awanHujan += dt * (2 + kuat * 6);
+    const malam = jepit(1 - t * 1.4) * 0.6;
+    const dasarAwan = campur(campur(PUTIH, hex("#7c8ba0"), kuat), hex("#24395a"), malam);
+    for (const a of awanHujan) {
+      if (a.depan) continue;
+      awan(c, geserAwan(a, w, anim.awanHujan * (0.7 + a.s * 0.3)), a.y * h, a.s * h / 150,
+           campur(dasarAwan, hex("#9aa8bb"), 0.18), 0.92);
+    }
+
+    const gx = w - 30;
+    const yTanah = x => yBukit(x, w, h * 0.88, h * 0.03, 0.5, 1.2);
+
+    // tetesan; saat menyentuh tanah muncul riak kecil
     const banyak = Math.round(kuat * tetes.length);
     c.strokeStyle = rgb(campur(PUTIH, hex("#cfe6ff"), 0.4), 0.85);
-    c.lineWidth = 1.5; c.lineCap = "round";
-    const lebarHujan = w - 56;
+    c.lineWidth = 1.4;
+    c.beginPath();
+    const yMulai = h * 0.38;
     for (let i = 0; i < banyak; i++) {
       const d = tetes[i];
+      const x = 6 + d.x * (gx - 34), yAkhir = yTanah(x);
       d.y += dt * (1.3 + kuat * 1.2) * d.v;
-      if (d.y > 1) { d.y = 0; d.x = acak(); }
-      const x = 8 + d.x * (lebarHujan - 8), y = h * 0.34 + d.y * (yTanah - h * 0.34);
+      let y = yMulai + d.y * (yAkhir - yMulai);
+      if (y >= yAkhir) {
+        if (riak.length < 40) riak.push({ x: x - 2, y: yAkhir + 2, u: 0 });
+        d.y = 0; d.x = acak(); continue;
+      }
       const p = 7 + kuat * 7;
-      c.beginPath(); c.moveTo(x, y); c.lineTo(x - p * 0.22, y + p); c.stroke();
+      c.moveTo(x, y); c.lineTo(x - p * 0.22, y + p);
+    }
+    c.stroke();
+
+    for (const a of awanHujan) {
+      if (!a.depan) continue;
+      awan(c, geserAwan(a, w, anim.awanHujan * (0.7 + a.s * 0.3)), a.y * h, a.s * h / 150, dasarAwan, 1);
     }
 
-    // awan: makin lebat makin abu-abu
-    const warnaAwan = campur(campur(PUTIH, hex("#8796ab"), kuat), hex("#2a4366"), jepit(1 - t * 1.4) * 0.6);
-    const geser = (animasi.geser * (4 + kuat * 10)) % (w + 120);
-    const posisi = [[0.08, 0.32, 1.25], [0.46, 0.26, 1.05], [0.8, 0.36, 0.85]];
-    for (const [px, py, sk] of posisi) {
-      let x = ((px * (w + 120) + geser) % (w + 120)) - 80;
-      awan(c, x, py * h, sk * (h / 150), warnaAwan);
-    }
+    bukit(c, w, h, h * 0.88, h * 0.03, 0.5, 1.2, hijau(BUKIT_DEKAT, t, kuat * 0.35));
 
-    // tanah
-    c.fillStyle = rgb(tanah);
-    c.fillRect(0, yTanah, w, h - yTanah);
-
-    // tabung penakar: total hari ini (penuh = 50 mm)
-    const tx = w - 34, ty = h * 0.22, tw = 18, th = yTanah - ty - 6;
-    const isi = jepit(k.hujan / 50);
-    c.fillStyle = rgb(PUTIH, 0.25); c.fillRect(tx, ty, tw, th);
-    c.fillStyle = rgb(hex("#2a78d6"));
-    c.fillRect(tx, ty + th * (1 - isi), tw, th * isi);
-    c.strokeStyle = rgb(PUTIH); c.lineWidth = 2; c.strokeRect(tx, ty, tw, th);
     c.lineWidth = 1;
-    for (const mm of [20, 50]) {
-      const y = ty + th * (1 - mm / 50) + 0.5;
-      c.beginPath(); c.moveTo(tx - 5, y); c.lineTo(tx, y); c.stroke();
+    for (let i = riak.length - 1; i >= 0; i--) {
+      const r = riak[i];
+      r.u += dt * 2.4;
+      if (r.u >= 1) { riak.splice(i, 1); continue; }
+      c.strokeStyle = `rgba(255,255,255,${(1 - r.u) * 0.7})`;
+      c.beginPath(); c.ellipse(r.x, r.y, 1 + 5 * r.u, 0.5 + 1.6 * r.u, 0, 0, 7); c.stroke();
     }
+
+    penakar(c, gx, yTanah(gx) + 1, h * 0.44, t, kuat);
   }
 
-  function gambarCahaya() {
+  // ---------------- CAHAYA ----------------
+
+  function gambarCahaya(dt) {
     const s = siapkan("adegan-cahaya"); if (!s) return;
     const { c, w, h } = s, t = terang();
-    const { atas } = langit(c, w, h, t);
-    const cx = w * 0.5, cy = h * 0.42;
+    const { atas, bawah } = langit(c, w, h, t);
+    const tinggiMatahari = jepit((t - 0.25) / 0.75);   // 0 = dekat cakrawala, 1 = tinggi
+    const tampakMatahari = jepit((t - 0.15) / 0.2);    // 0 = bulan, 1 = matahari
 
-    const matahari = jepit((t - 0.15) / 0.2);       // 0 = bulan, 1 = matahari
-    if (matahari < 1) {                              // bulan sabit
-      const r = 15;
-      c.globalAlpha = 1 - matahari;
-      c.fillStyle = rgb(hex("#f4f1e4"));
-      c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill();
-      c.fillStyle = rgb(atas);
-      c.beginPath(); c.arc(cx + 7, cy - 4, r * 0.92, 0, 7); c.fill();
+    if (tampakMatahari < 1) {                           // bulan sabit
+      const bx = w * 0.26, by = h * 0.3, r = 12;
+      c.globalAlpha = 1 - tampakMatahari;
+      const halo = c.createRadialGradient(bx, by, r, bx, by, r * 3.2);
+      halo.addColorStop(0, "rgba(240,236,220,0.22)"); halo.addColorStop(1, "rgba(240,236,220,0)");
+      c.fillStyle = halo; c.beginPath(); c.arc(bx, by, r * 3.2, 0, 7); c.fill();
+      c.fillStyle = "#f3efe0"; c.beginPath(); c.arc(bx, by, r, 0, 7); c.fill();
+      c.fillStyle = rgb(campur(atas, bawah, (by - 4) / h));
+      c.beginPath(); c.arc(bx + 6, by - 4, r * 0.9, 0, 7); c.fill();
       c.globalAlpha = 1;
     }
-    if (matahari > 0) {
-      const r = 13 + 9 * t;
-      c.globalAlpha = matahari;
-      const glow = c.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * (2 + 3 * t));
-      glow.addColorStop(0, `rgba(255,226,122,${0.25 + 0.5 * t})`);
-      glow.addColorStop(1, "rgba(255,226,122,0)");
-      c.fillStyle = glow; c.beginPath(); c.arc(cx, cy, r * (2 + 3 * t), 0, 7); c.fill();
 
-      c.strokeStyle = `rgba(255,230,140,${0.35 + 0.65 * t})`;
-      c.lineWidth = 2.4; c.lineCap = "round";
-      const putar = animasi.waktu * 0.25;
+    if (tampakMatahari > 0) {
+      const e = tinggiMatahari;
+      const sx = w * 0.28, sy = h * (0.72 - 0.46 * e), r = 11 + 6 * e;
+      const inti = campur(hex("#ffe2bd"), hex("#fffbe8"), e);
+      const tepi = campur(hex("#ff8f4f"), hex("#ffc83a"), e);
+      c.globalAlpha = tampakMatahari;
+
+      // berkas cahaya lembut yang berputar pelan
+      const R = r * (4 + 3 * t);
+      c.save(); c.translate(sx, sy); c.rotate(anim.waktu * 0.04);
+      const sinar = c.createRadialGradient(0, 0, r, 0, 0, R);
+      sinar.addColorStop(0, rgb(tepi, 0.12 + 0.1 * t));
+      sinar.addColorStop(1, rgb(tepi, 0));
+      c.fillStyle = sinar;
       for (let i = 0; i < 12; i++) {
-        const a = putar + i * Math.PI / 6;
-        const r1 = r + 6, r2 = r + 6 + (6 + 18 * t) * (i % 2 ? 0.65 : 1);
-        c.beginPath(); c.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-        c.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); c.stroke();
+        c.rotate(Math.PI / 6);
+        const lebarSinar = i % 2 ? 0.045 : 0.07;
+        c.beginPath(); c.moveTo(0, 0);
+        c.lineTo(R * Math.cos(-lebarSinar), R * Math.sin(-lebarSinar));
+        c.lineTo(R * Math.cos(lebarSinar), R * Math.sin(lebarSinar));
+        c.closePath(); c.fill();
       }
-      const isi = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 1, cx, cy, r);
-      isi.addColorStop(0, "#fff6c4"); isi.addColorStop(1, "#ffc93a");
-      c.fillStyle = isi; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill();
+      c.restore();
+
+      const rh = r * (2.6 + 2.4 * t);
+      const halo = c.createRadialGradient(sx, sy, r * 0.8, sx, sy, rh);
+      halo.addColorStop(0, rgb(tepi, 0.45 + 0.3 * t));
+      halo.addColorStop(0.45, rgb(tepi, 0.14 + 0.1 * t));
+      halo.addColorStop(1, rgb(tepi, 0));
+      c.fillStyle = halo; c.beginPath(); c.arc(sx, sy, rh, 0, 7); c.fill();
+
+      const denyut = (anim.waktu * 0.45) % 1;
+      c.strokeStyle = rgb(inti, (1 - denyut) * 0.35 * t); c.lineWidth = 1.5;
+      c.beginPath(); c.arc(sx, sy, r * (1.25 + denyut * 1.7), 0, 7); c.stroke();
+
+      const cakram = c.createRadialGradient(sx - r * 0.35, sy - r * 0.35, 1, sx, sy, r);
+      cakram.addColorStop(0, rgb(inti)); cakram.addColorStop(1, rgb(tepi));
+      c.fillStyle = cakram; c.beginPath(); c.arc(sx, sy, r, 0, 7); c.fill();
       c.globalAlpha = 1;
     }
 
-    // tanah dan panel surya
-    const yTanah = h * 0.86;
-    c.fillStyle = rgb(warnaTanah(t)); c.fillRect(0, yTanah, w, h - yTanah);
+    bukit(c, w, h, h * 0.8, h * 0.05, 2.0, 1.5, hijau(BUKIT_JAUH, t));
+    const yDekat = x => yBukit(x, w, h * 0.9, h * 0.03, 0.8, 1.1);
+    bukit(c, w, h, h * 0.9, h * 0.03, 0.8, 1.1, hijau(BUKIT_DEKAT, t));
 
-    const pw = Math.min(150, w * 0.42), ph = h * 0.2, px = w * 0.5 - pw / 2, py = yTanah - ph - 8, miring = pw * 0.12;
-    c.fillStyle = rgb(campur(hex("#9fb3c8"), PUTIH, t));
-    c.fillRect(w * 0.5 - 2, py + ph, 4, yTanah - py - ph);
-    const sudut = [[px + miring, py], [px + pw + miring, py], [px + pw, py + ph], [px, py + ph]];
-    c.fillStyle = "#123a6b";
-    c.beginPath(); sudut.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill();
+    // ---- panel surya ----
+    const cx = w * 0.58, yTanah = yDekat(cx);
+    const pw = Math.min(140, w * 0.38), ph = h * 0.22, kaki = h * 0.1, miring = pw * 0.16;
+    const yBawahP = yTanah - kaki, yAtasP = yBawahP - ph;
+    const A = [cx - pw / 2 + miring, yAtasP], B = [cx + pw / 2 + miring, yAtasP];
+    const C = [cx + pw / 2, yBawahP], D = [cx - pw / 2, yBawahP];
+    const poligon = pts => { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); };
 
-    // kilau bergerak, makin terang makin jelas
-    c.save(); c.clip();
-    const kilauX = px + ((animasi.waktu * 40) % (pw * 2.2)) - pw * 0.6;
-    const kilau = c.createLinearGradient(kilauX, 0, kilauX + pw * 0.4, 0);
+    // bayangan memanjang saat matahari rendah
+    c.fillStyle = `rgba(8,30,30,${0.14 + 0.12 * tampakMatahari * t})`;
+    c.beginPath();
+    c.ellipse(cx + pw * 0.14 + (1 - tinggiMatahari) * pw * 0.18, yTanah + 2,
+              pw * 0.55 * (1 + (1 - tinggiMatahari) * 0.35), 4, 0, 0, 7);
+    c.fill();
+
+    const besi = campur(hex("#3a4a5c"), hex("#7d8fa3"), t);
+    c.strokeStyle = rgb(besi); c.lineWidth = 3;
+    c.beginPath();
+    for (const f of [0.18, 0.82]) {
+      const xb = A[0] + (B[0] - A[0]) * f;
+      c.moveTo(xb, yAtasP + 4); c.lineTo(xb - 2, yTanah);
+    }
+    c.stroke();
+    c.lineWidth = 3.4;
+    c.beginPath();
+    for (const f of [0.18, 0.82]) {
+      const xd = D[0] + (C[0] - D[0]) * f;
+      c.moveTo(xd, yBawahP); c.lineTo(xd, yTanah);
+    }
+    c.stroke();
+
+    // rangka perak
+    c.fillStyle = rgb(campur(hex("#8193a8"), hex("#e9eef4"), t));
+    poligon([A, B, C, D]); c.fill();
+
+    // sel surya
+    const tengah = [(A[0] + B[0] + C[0] + D[0]) / 4, (yAtasP + yBawahP) / 2];
+    const dalam = P => [P[0] + (tengah[0] - P[0]) * 0.05, P[1] + (tengah[1] - P[1]) * 0.14];
+    const [a, b, cc, d] = [A, B, C, D].map(dalam);
+    const sel = c.createLinearGradient(a[0], a[1], cc[0], cc[1]);
+    sel.addColorStop(0, rgb(campur(hex("#0c2b55"), hex("#2366b8"), 0.3 + 0.7 * t)));
+    sel.addColorStop(1, rgb(campur(hex("#061830"), hex("#103c78"), 0.3 + 0.7 * t)));
+    c.fillStyle = sel; poligon([a, b, cc, d]); c.fill();
+
+    const pantul = c.createLinearGradient(0, a[1], 0, d[1]);
+    pantul.addColorStop(0, rgb(atas, 0.38)); pantul.addColorStop(1, rgb(atas, 0));
+    c.fillStyle = pantul; poligon([a, b, cc, d]); c.fill();
+
+    const titikPada = (u, v) => lerp(lerp(a, b, u), lerp(d, cc, u), v);
+    c.strokeStyle = "rgba(175,210,248,0.45)"; c.lineWidth = 0.8;
+    c.beginPath();
+    for (let i = 1; i < 6; i++) { const p = titikPada(i / 6, 0), q = titikPada(i / 6, 1); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); }
+    for (let j = 1; j < 3; j++) { const p = titikPada(0, j / 3), q = titikPada(1, j / 3); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); }
+    c.stroke();
+
+    // kilau berjalan, makin terang makin jelas
+    c.save(); poligon([a, b, cc, d]); c.clip();
+    const kx = D[0] - pw * 0.5 + ((anim.waktu * 30) % (pw * 2.2));
+    const kilau = c.createLinearGradient(kx, 0, kx + pw * 0.35, 0);
     kilau.addColorStop(0, "rgba(255,255,255,0)");
-    kilau.addColorStop(0.5, `rgba(255,255,255,${0.55 * t})`);
+    kilau.addColorStop(0.5, `rgba(255,255,255,${0.55 * tampakMatahari * t})`);
     kilau.addColorStop(1, "rgba(255,255,255,0)");
-    c.fillStyle = kilau; c.fillRect(px, py, pw + miring, ph);
+    c.fillStyle = kilau; c.fillRect(D[0] - 10, yAtasP - 2, pw + miring + 20, ph + 4);
     c.restore();
 
-    c.strokeStyle = "rgba(255,255,255,0.45)"; c.lineWidth = 1;
-    for (let i = 1; i < 4; i++) {
-      const f = i / 4;
-      c.beginPath(); c.moveTo(px + miring + pw * f, py); c.lineTo(px + pw * f, py + ph); c.stroke();
+    c.strokeStyle = `rgba(255,255,255,${0.35 + 0.4 * t})`; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(A[0], A[1]); c.lineTo(B[0], B[1]); c.stroke();
+
+    // ---- kabel, aliran energi, baterai ----
+    const bx = w - 22, yB = yDekat(bx);
+    const P0 = [C[0] - 8, yBawahP + 1], P1 = [C[0] + 6, yB + 2], P2 = [bx - 8, yB - 9];
+    const padaKabel = u => {
+      const m = 1 - u;
+      return [m * m * P0[0] + 2 * m * u * P1[0] + u * u * P2[0], m * m * P0[1] + 2 * m * u * P1[1] + u * u * P2[1]];
+    };
+    c.strokeStyle = rgb(besi); c.lineWidth = 2;
+    c.beginPath(); c.moveTo(P0[0], P0[1]); c.quadraticCurveTo(P1[0], P1[1], P2[0], P2[1]); c.stroke();
+
+    const daya = jepit((t - 0.2) / 0.8);          // 0 saat gelap, 1 saat terik
+    if (daya > 0) {
+      const kecepatan = 0.2 + 0.7 * daya;
+      for (const u0 of energi) {
+        const [ex, ey] = padaKabel((u0 + anim.waktu * kecepatan) % 1);
+        c.fillStyle = `rgba(255,214,90,${0.3 * daya})`;
+        c.beginPath(); c.arc(ex, ey, 5, 0, 7); c.fill();
+        c.fillStyle = `rgba(255,226,120,${0.45 + 0.55 * daya})`;
+        c.beginPath(); c.arc(ex, ey, 2, 0, 7); c.fill();
+      }
     }
-    c.beginPath(); c.moveTo(px + miring / 2, py + ph / 2); c.lineTo(px + pw + miring / 2, py + ph / 2); c.stroke();
+
+    const lb = 16, tb = 24, xb = bx - lb / 2, ybAtas = yB - tb - 1;
+    c.fillStyle = "rgba(255,255,255,0.9)";
+    c.beginPath(); c.roundRect(bx - 3.5, ybAtas - 3, 7, 3.5, 1); c.fill();
+    c.fillStyle = "rgba(8,28,58,0.55)";
+    c.beginPath(); c.roundRect(xb, ybAtas, lb, tb, 3); c.fill();
+    c.strokeStyle = "rgba(255,255,255,0.9)"; c.lineWidth = 1.5; c.stroke();
+    const nyala = Math.round(daya * 4);
+    for (let i = 0; i < 4; i++) {
+      c.fillStyle = i < nyala ? "#ffcf4a" : "rgba(255,255,255,0.16)";
+      c.beginPath(); c.roundRect(xb + 3, ybAtas + tb - 3 - (i + 1) * 4.6 + 1, lb - 6, 3.4, 1); c.fill();
+    }
   }
 
   function gambarSemua(dt) {
-    animasi.waktu += dt;
-    animasi.geser += dt;
+    anim.waktu += dt;
     const omega = k.angin < 0.3 ? 0 : Math.min(k.angin, 16) * 0.9;   // rad per detik
-    animasi.sudut = (animasi.sudut + omega * dt) % (Math.PI * 2);
-    gambarAngin(dt); gambarHujan(dt); gambarCahaya();
+    anim.sudut = (anim.sudut + omega * dt) % (Math.PI * 2);
+    gambarAngin(dt); gambarHujan(dt); gambarCahaya(dt);
   }
 
   const bolehGerak = () => !document.hidden && !$("panel-live").hidden && !gerakKurang.matches;
@@ -827,14 +1060,24 @@ function pilihMode(jumlahHari) {
 
 // rain_gauge adalah akumulasi harian. Hujan dalam satu periode dihitung dari
 // jumlah kenaikannya, jadi tetap benar walau angka sempat di-nol-kan.
+// Kenaikan yang mustahil untuk hujan sungguhan (lebih dari BATAS_HUJAN_PER_MENIT)
+// dianggap gangguan dan tidak dihitung. Hasilnya: b.naik dan b.hujanBersih.
 function tambahKenaikanHujan(baris) {
-  let hariLalu = null, lalu = 0;
+  let hariLalu = null, lalu = 0, tLalu = 0, akumulasi = 0, lonjakan = 0;
   for (const b of baris) {
     const h = awalHari(b.t);
-    if (h !== hariLalu) { hariLalu = h; b.naik = b.hujan; }
-    else b.naik = Math.max(0, b.hujan - lalu);
+    let naik;
+    if (h !== hariLalu) { hariLalu = h; naik = b.hujan; tLalu = h; akumulasi = 0; }
+    else naik = Math.max(0, b.hujan - lalu);
+    const menit = Math.max(1, (b.t - tLalu) / MENIT);
+    if (naik / menit > BATAS_HUJAN_PER_MENIT) { naik = 0; lonjakan++; }
+    akumulasi += naik;
+    b.naik = naik;
+    b.hujanBersih = akumulasi;
     lalu = b.hujan;
+    tLalu = b.t;
   }
+  return lonjakan;
 }
 
 function kelompokkan(baris, ember) {
@@ -878,16 +1121,26 @@ async function tampilkanRiwayat() {
   }
   if (urutan !== riwayat.muat) return;        // sudah ada permintaan yang lebih baru
 
-  tambahKenaikanHujan(baris);
+  const lonjakan = tambahKenaikanHujan(baris);
   const mode = pilihMode(jumlahHari);
   Object.assign(riwayat, { baris, mode, dari, sampai, halaman: 1 });
   riwayat.tampil = mode === "asli" ? baris : kelompokkan(baris, mode === "jam" ? JAM : HARI);
 
   const namaMode = { asli: "data asli per menit", jam: "rata-rata per jam", hari: "rekap per hari" }[mode];
   const rentangTeks = dari === sampai ? tgl(dari) : `${tgl(dari)} sampai ${tgl(sampai)}`;
-  info.textContent = baris.length
-    ? `${baris.length.toLocaleString("id-ID")} pembacaan, ${rentangTeks}. Ditampilkan sebagai ${namaMode}.`
-    : `Tidak ada data pada ${rentangTeks}.`;
+  if (baris.length) {
+    info.textContent = `${baris.length.toLocaleString("id-ID")} pembacaan, ${rentangTeks}. Ditampilkan sebagai ${namaMode}.` +
+      (lonjakan ? ` ${lonjakan.toLocaleString("id-ID")} lonjakan hujan yang tidak wajar (lebih dari ${BATAS_HUJAN_PER_MENIT} mm per menit) tidak dihitung di grafik dan total.` : "");
+  } else {
+    info.textContent = `Tidak ada data pada ${rentangTeks}.`;
+    // Bantu cari: kapan terakhir alat menyimpan data?
+    sumber.dataTerakhir().then(t => {
+      if (urutan !== riwayat.muat || t == null) return;
+      const hariData = awalHari(t);
+      info.innerHTML = `Tidak ada data pada ${rentangTeks}. Data terakhir tercatat ${tgl(t)} pukul ${jam(t)}. ` +
+        `<button type="button" class="tautan" data-lompat="${isoTgl(hariData)}">Tampilkan ${tgl(hariData)}</button>`;
+    }).catch(() => {});
+  }
 
   gambarRiwayat();
   isiRingkasan();
@@ -895,7 +1148,7 @@ async function tampilkanRiwayat() {
 }
 
 function gambarRiwayat() {
-  const { tampil, mode, dari, sampai } = riwayat;
+  const { tampil, baris, mode, dari, sampai } = riwayat;
   const rentang = [dari, sampai + HARI];
   const ember = mode === "jam" ? JAM : HARI;
   const labelWaktu = {
@@ -903,25 +1156,54 @@ function gambarRiwayat() {
     jam:  t => `${tgl(t, false)} ${jam(t)} sampai ${jam(t + JAM)}`,
     hari: t => tgl(t)
   }[mode];
-  const celah = mode === "asli" ? 3 * MENIT : ember * 1.5;
   const pesanKosong = "Tidak ada data pada rentang ini. Pilih tanggal lain.";
+  const judul = (id, teks, satuan) => { $(id).innerHTML = `${teks} <span class="satuan-judul">${satuan}</span>`; };
 
-  // Titik rata-rata diletakkan di tengah periodenya
-  const geser = mode === "asli" ? 0 : ember / 2;
-  const seri = s => tampil.map(b => ({ t: b.t + geser, v: b[s] }));
-
-  grafikRiwayat.angin.setData(seri("angin"), rentang, { jenis: "garis", celah, labelWaktu, pesanKosong });
-  grafikRiwayat.cahaya.setData(seri("cahaya"), rentang, { jenis: "garis", celah, labelWaktu, pesanKosong });
-
-  if (mode === "asli") {
-    grafikRiwayat.hujan.setData(seri("hujan"), rentang, { jenis: "tangga", celah, labelWaktu, pesanKosong });
-    $("judul-hujan").innerHTML = `Curah hujan, akumulasi harian <span class="satuan-judul">mm</span>`;
+  if (mode === "hari") {
+    // Rekap per hari memakai batang, supaya hari tanpa data tetap terlihat jelas kosong
+    const batang = s => tampil.map(b => ({ t: b.t, v: b[s] }));
+    const opsi = { jenis: "batang", ember, labelWaktu, pesanKosong, tren: false };
+    grafikRiwayat.angin.setData(batang("angin"), rentang, opsi);
+    grafikRiwayat.hujan.setData(batang("hujan"), rentang, opsi);
+    grafikRiwayat.cahaya.setData(batang("cahaya"), rentang, opsi);
+    judul("judul-angin", "Kecepatan angin, rata-rata per hari", "m/s");
+    judul("judul-hujan", "Curah hujan per hari", "mm");
+    judul("judul-cahaya", "Intensitas cahaya, rata-rata per hari", "lux");
   } else {
-    grafikRiwayat.hujan.setData(tampil.map(b => ({ t: b.t, v: b.hujan })), rentang,
-                                { jenis: "batang", ember, labelWaktu, pesanKosong });
-    $("judul-hujan").innerHTML =
-      `Curah hujan per ${mode === "jam" ? "jam" : "hari"} <span class="satuan-judul">mm</span>`;
+    const celah = mode === "asli" ? 3 * MENIT : ember * 1.5;
+    const geser = mode === "asli" ? 0 : ember / 2;      // titik rata-rata di tengah periodenya
+    const seri = s => tampil.map(b => ({ t: b.t + geser, v: b[s] }));
+    const opsi = { jenis: "garis", celah, labelWaktu, pesanKosong, tren: mode === "asli" };
+    grafikRiwayat.angin.setData(seri("angin"), rentang, opsi);
+    grafikRiwayat.cahaya.setData(seri("cahaya"), rentang, opsi);
+    if (mode === "asli") {
+      grafikRiwayat.hujan.setData(tampil.map(b => ({ t: b.t, v: b.hujanBersih })), rentang,
+                                  { ...opsi, jenis: "tangga", tren: false });
+      judul("judul-angin", "Kecepatan angin", "m/s");
+      judul("judul-hujan", "Curah hujan, akumulasi harian", "mm");
+      judul("judul-cahaya", "Intensitas cahaya", "lux");
+    } else {
+      grafikRiwayat.hujan.setData(tampil.map(b => ({ t: b.t, v: b.hujan })), rentang,
+                                  { jenis: "batang", ember, labelWaktu, pesanKosong, tren: false });
+      judul("judul-angin", "Kecepatan angin, rata-rata per jam", "m/s");
+      judul("judul-hujan", "Curah hujan per jam", "mm");
+      judul("judul-cahaya", "Intensitas cahaya, rata-rata per jam", "lux");
+    }
   }
+
+  // Jumlah data yang tersimpan: per jam untuk rentang pendek, per hari untuk rekap harian
+  const emberData = mode === "hari" ? HARI : JAM;
+  const hitung = new Map();
+  for (const b of baris) {
+    const kk = Math.floor(b.t / emberData) * emberData;
+    hitung.set(kk, (hitung.get(kk) || 0) + 1);
+  }
+  const seriData = [...hitung].sort((p, q) => p[0] - q[0]).map(([t, v]) => ({ t, v }));
+  grafikRiwayat.data.setData(seriData, rentang, {
+    jenis: "batang", ember: emberData, pesanKosong, tren: false,
+    labelWaktu: emberData === HARI ? t => tgl(t) : t => `${tgl(t, false)} ${jam(t)} sampai ${jam(t + JAM)}`
+  });
+  judul("judul-data", "Jumlah data tercatat", emberData === HARI ? "per hari" : "per jam");
 }
 
 function isiRingkasan() {
@@ -934,12 +1216,18 @@ function isiRingkasan() {
   $("ringkas-angin").innerHTML  = butir("Rata-rata", angka(rata("angin"), 2)) + butir("Tertinggi", angka(maks("angin"), 2));
   $("ringkas-hujan").innerHTML  = butir("Total", angka(total, 2));
   $("ringkas-cahaya").innerHTML = butir("Rata-rata", angka(rata("cahaya"), 0)) + butir("Tertinggi", angka(maks("cahaya"), 0));
+
+  // Kelengkapan: data tersimpan dibanding seharusnya (1 data per menit sampai sekarang)
+  const seharusnya = Math.max(0, (Math.min(riwayat.sampai + HARI, sekarangWIB()) - riwayat.dari) / MENIT);
+  const lengkap = seharusnya ? Math.min(100, (b.length / seharusnya) * 100) : NaN;
+  $("ringkas-data").innerHTML = butir("Total", b.length.toLocaleString("id-ID")) +
+    butir("Kelengkapan", Number.isFinite(lengkap) ? `${angka(lengkap, 0)}%` : "–");
 }
 
 function kolomTabel() {
   if (riwayat.mode === "asli") {
     return {
-      kepala: ["Waktu", "Angin (m/s)", "Hujan hari itu (mm)", "Cahaya (lux)"],
+      kepala: ["Waktu", "Angin (m/s)", "Hujan tercatat hari itu (mm)", "Cahaya (lux)"],
       baris: b => [`${tgl(b.t)} ${jam(b.t, true)}`, angka(b.angin, 2), angka(b.hujan, 2), angka(b.cahaya, 0)],
       csv:   b => [`${tgl(b.t)} ${jam(b.t, true)}`, b.angin.toFixed(2), b.hujan.toFixed(2), b.cahaya.toFixed(2)]
     };
@@ -1164,7 +1452,7 @@ async function mulaiFirebase() {
     peringatan("muat", "Library Firebase gagal dimuat. Periksa sambungan internet, lalu muat ulang halaman.");
     return;
   }
-  const { getDatabase, ref, onValue, query, orderByKey, startAt, endAt, get, update } = fbDb;
+  const { getDatabase, ref, onValue, query, orderByKey, startAt, endAt, limitToLast, get, update } = fbDb;
   const aplikasi = fbApp.initializeApp(firebaseConfig);
   const db = getDatabase(aplikasi);
 
@@ -1194,6 +1482,12 @@ async function mulaiFirebase() {
 
   sumber = {
     bacaHistori,
+    async dataTerakhir() {
+      const snap = await get(query(ref(db, JALUR_HISTORI), orderByKey(), limitToLast(1)));
+      let t = null;
+      snap.forEach(anak => { const b = barisDari(anak.key, anak.val()); if (b) t = b.t; });
+      return t;
+    },
     async kunciHistori(dari, sampai) {
       const kunci = [];
       (await get(rentangKunci(dari, sampai))).forEach(anak => { kunci.push(anak.key); });
@@ -1237,7 +1531,16 @@ function mulaiDemo() {
   const acak  = n => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const halus = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return acak(i) * (1 - u) + acak(i + 1) * u; };
 
-  function contoh(t) {
+  // Alat "mati" pada sebagian hari dan jam, supaya tampilan data bolong ikut teruji
+  const hariIniDemo = Math.floor(sekarangWIB() / HARI);
+  function mati(t) {
+    const hari = Math.floor(t / HARI), jamKe = Math.floor(t / JAM);
+    if (jamKe === Math.floor(sekarangWIB() / JAM)) return false;
+    if (hari !== hariIniDemo && acak(hari + 0.13) < 0.3) return true;
+    return acak(jamKe * 0.917 + 0.77) < 0.08;
+  }
+
+  function contoh(t, gangguan = false) {
     const hari = Math.floor(t / HARI), j = (t % HARI) / JAM;
     const matahari = Math.max(0, Math.sin(((j - 6) / 12) * Math.PI));
     const awan = 0.4 + 0.6 * halus(t / (18 * MENIT));
@@ -1252,6 +1555,8 @@ function mulaiDemo() {
       const p = Math.min(1, Math.max(0, (j - mulai) / lama));
       hujan = Math.round((total * p * p * (3 - 2 * p)) / 0.25) * 0.25;
     }
+    // contoh gangguan kabel: angka hujan melonjak puluhan mm per menit (harus diabaikan grafik)
+    if (gangguan && hari !== hariIniDemo && hari % 9 === 4 && j >= 10) hujan += Math.min(20, (j - 10) * 60) * 40;
     return { t, angin: +angin.toFixed(2), hujan, cahaya: +cahaya.toFixed(2) };
   }
 
@@ -1260,8 +1565,12 @@ function mulaiDemo() {
   sumber = {
     async bacaHistori(dari, sampai) {
       const hasil = [], akhir = Math.min(sampai, sekarangWIB());
-      for (let t = Math.ceil(dari / MENIT) * MENIT; t <= akhir; t += MENIT) hasil.push(contoh(t));
+      for (let t = Math.ceil(dari / MENIT) * MENIT; t <= akhir; t += MENIT) if (!mati(t)) hasil.push(contoh(t, true));
       return hasil;
+    },
+    async dataTerakhir() {
+      for (let t = Math.floor(sekarangWIB() / MENIT) * MENIT, n = 0; n < 60 * 24 * 40; t -= MENIT, n++) if (!mati(t)) return t;
+      return null;
     },
     async kunciHistori(dari, sampai) { return (await this.bacaHistori(dari, sampai)).map(b => kunciDari(b.t)); },
     async akun() { return akunDemo; },
@@ -1303,15 +1612,26 @@ for (const s of DAFTAR) {
   });
 }
 
-// Kursor di satu grafik histori ikut muncul di dua grafik lainnya
-for (const s of DAFTAR) {
-  grafikRiwayat[s].padaKursor(t => DAFTAR.forEach(lain => grafikRiwayat[lain].setKursor(t)));
+grafikRiwayat.data = buatGrafik($("grafik-data"), {
+  sensor: "data", tinggi: 160, tandaSekarang: true, minMaks: 4, jenis: "batang", ember: JAM,
+  pesanKosong: "Pilih tanggal lalu tekan Tampilkan."
+});
+
+// Kursor di satu grafik histori ikut muncul di grafik lainnya
+for (const s of DAFTAR_GRAFIK) {
+  grafikRiwayat[s].padaKursor(t => DAFTAR_GRAFIK.forEach(lain => grafikRiwayat[lain].setKursor(t)));
 }
 
 document.querySelectorAll(".tab button").forEach(t => t.addEventListener("click", () => bukaTab(t.dataset.tab)));
 window.addEventListener("hashchange", () => bukaTab(location.hash.slice(1)));
 
 $("saring").addEventListener("submit", e => { e.preventDefault(); tampilkanRiwayat(); });
+$("saring-info").addEventListener("click", e => {
+  const tombol = e.target.closest("[data-lompat]");
+  if (!tombol) return;
+  $("tgl-dari").value = $("tgl-sampai").value = tombol.dataset.lompat;
+  tampilkanRiwayat();
+});
 document.querySelectorAll("[data-cepat]").forEach(b => b.addEventListener("click", () => setRentangCepat(+b.dataset.cepat)));
 $("hal-sebelum").addEventListener("click", () => { riwayat.halaman--; isiTabel(); });
 $("hal-berikut").addEventListener("click", () => { riwayat.halaman++; isiTabel(); });

@@ -45,7 +45,6 @@
         <p class="nilai"><span id="nilai-angin">–</span> <span class="satuan">m/s</span></p>
         <p class="kategori" id="kategori-angin">Menunggu data dari alat</p>
         <div class="skala" id="skala-angin"></div>
-        <p class="catatan" id="catatan-angin">Kecepatan baling-baling di gambar mengikuti angin. Turbin angin kecil umumnya mulai berputar di sekitar 3 m/s.</p>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-angin"></div>
       </article>
@@ -56,7 +55,6 @@
         <p class="nilai"><span id="nilai-hujan">–</span> <span class="satuan">mm</span></p>
         <p class="kategori" id="kategori-hujan">Menunggu data dari alat</p>
         <div class="skala" id="skala-hujan"></div>
-        <p class="catatan">Kategori hujan harian BMKG. Tetesan di gambar muncul saat hujan sedang tercatat, tabung menunjukkan total hari ini.</p>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-hujan"></div>
       </article>
@@ -67,7 +65,6 @@
         <p class="nilai"><span id="nilai-cahaya">–</span> <span class="satuan">lux</span></p>
         <p class="kategori" id="kategori-cahaya">Menunggu data dari alat</p>
         <div class="skala" id="skala-cahaya"></div>
-        <p class="catatan">Langit dan matahari di gambar mengikuti terang cahaya. Matahari langsung di atas 32.000 lux.</p>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-cahaya"></div>
       </article>
@@ -102,7 +99,7 @@
     <div class="lembar">
       <div class="blok-grafik" data-sensor="angin">
         <div class="blok-kepala">
-          <h2>Kecepatan angin <span class="satuan-judul">m/s</span></h2>
+          <h2 id="judul-angin">Kecepatan angin <span class="satuan-judul">m/s</span></h2>
           <dl class="ringkas" id="ringkas-angin"></dl>
         </div>
         <div id="grafik-angin"></div>
@@ -116,10 +113,17 @@
       </div>
       <div class="blok-grafik" data-sensor="cahaya">
         <div class="blok-kepala">
-          <h2>Intensitas cahaya <span class="satuan-judul">lux</span></h2>
+          <h2 id="judul-cahaya">Intensitas cahaya <span class="satuan-judul">lux</span></h2>
           <dl class="ringkas" id="ringkas-cahaya"></dl>
         </div>
         <div id="grafik-cahaya"></div>
+      </div>
+      <div class="blok-grafik" data-sensor="data">
+        <div class="blok-kepala">
+          <h2 id="judul-data">Jumlah data tercatat <span class="satuan-judul">per jam</span></h2>
+          <dl class="ringkas" id="ringkas-data"></dl>
+        </div>
+        <div id="grafik-data"></div>
       </div>
     </div>
   </section>

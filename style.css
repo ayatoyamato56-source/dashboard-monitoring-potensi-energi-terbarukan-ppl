@@ -25,6 +25,7 @@
   --seri-angin:  #1baf7a;
   --seri-hujan:  #2a78d6;
   --seri-cahaya: #eda100;
+  --seri-data:   #6b7f95;   /* jumlah data: netral, bukan sensor */
 
   --baik:   #14804f;
   --buruk:  #c23a2e;
@@ -57,6 +58,7 @@
     --seri-angin:  #199e70;
     --seri-hujan:  #3987e5;
     --seri-cahaya: #c98500;
+    --seri-data:   #8ea3ba;
 
     --baik:   #3fbf85;
     --buruk:  #f0796d;
@@ -244,7 +246,6 @@ main { padding-top: 20px; padding-bottom: 12px; }
 
 .kategori { font-weight: 600; margin-top: 6px; min-height: 1.5em; }
 
-.catatan { color: var(--tinta-2); font-size: 0.875rem; margin-top: 10px; min-height: 2.9em; }
 
 .instrumen h3 {
   font-size: 0.875rem;
@@ -409,6 +410,7 @@ button.utama, .tabel-alat button, .halaman button {
 button:disabled { opacity: 0.45; cursor: default; }
 
 .saring-info { flex-basis: 100%; color: var(--tinta-2); font-size: 0.92rem; min-height: 1.4em; }
+.saring-info button.tautan { font-weight: 600; margin-left: 4px; }
 
 /* ---------- Blok grafik histori ---------- */
 
@@ -440,6 +442,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .blok-grafik[data-sensor="angin"]  { --seri: var(--seri-angin); }
 .blok-grafik[data-sensor="hujan"]  { --seri: var(--seri-hujan); }
 .blok-grafik[data-sensor="cahaya"] { --seri: var(--seri-cahaya); }
+.blok-grafik[data-sensor="data"]   { --seri: var(--seri-data); }
 .blok-grafik {
   background: linear-gradient(180deg, color-mix(in srgb, var(--seri) 6%, var(--lembar)) 0%, var(--lembar) 55%);
 }
@@ -580,7 +583,6 @@ button.tautan {
 @media (max-width: 860px) {
   .instrumen-grid { grid-template-columns: 1fr; }
   .instrumen + .instrumen { border-left: 0; border-top: 1px solid var(--garis); }
-  .catatan { min-height: 0; }
 }
 
 @media (max-width: 560px) {

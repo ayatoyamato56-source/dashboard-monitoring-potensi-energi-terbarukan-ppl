@@ -223,18 +223,54 @@ button, input, select { font: inherit; color: inherit; }
 .tab button[aria-selected="true"] { color: #ffffff; border-bottom-color: var(--lime); }
 .tab button:focus-visible { outline-color: #ffffff; outline-offset: -3px; }
 
-/* ---------- Peringatan ---------- */
+/* ---------- Notis (peringatan) ---------- */
 
-.peringatan { margin-top: 18px; }
-.peringatan > p {
-  padding: 12px 16px;
-  border: 1px solid var(--buruk);
-  border-left-width: 5px;
-  border-radius: 8px;
-  background: var(--lembar);
+.peringatan { margin-top: 20px; display: grid; gap: 10px; }
+.notis {
+  --nada: var(--buruk);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px 18px 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--nada) 38%, var(--garis));
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--nada) 11%, transparent) 0%, transparent 60%),
+    var(--lembar);
+  box-shadow: 0 10px 28px -22px color-mix(in srgb, var(--nada) 80%, transparent);
 }
-.peringatan > p + p { margin-top: 8px; }
-.peringatan > p.info { border-color: var(--tunggu); }
+.notis-waspada { --nada: var(--tunggu); }
+.notis-info    { --nada: var(--hijau); }
+.notis-sukses  { --nada: var(--baik); }
+.notis-ikon {
+  width: 38px; height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--nada) 16%, transparent);
+  color: var(--nada);
+}
+.notis-ikon svg {
+  width: 21px; height: 21px;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.notis-judul { font-weight: 600; line-height: 1.35; }
+.notis-teks  { color: var(--tinta-2); font-size: 0.94rem; margin-top: 2px; }
+.notis details { margin-top: 6px; font-size: 0.9rem; }
+.notis summary {
+  width: fit-content;
+  color: var(--tekan);
+  font-weight: 600;
+  cursor: pointer;
+}
+.notis details p {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--ruas);
+  color: var(--tinta-2);
+}
 
 /* ---------- Lembar ---------- */
 
@@ -244,6 +280,7 @@ main { padding-top: 20px; padding-bottom: 12px; }
   background: var(--lembar);
   border: 1px solid var(--garis);
   border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 33, 30, 0.05), 0 18px 40px -28px rgba(0, 33, 30, 0.35);
 }
 
 /* ---------- Live: tiga instrumen dalam satu lembar ---------- */
@@ -299,6 +336,14 @@ main { padding-top: 20px; padding-bottom: 12px; }
 #panel-live[data-basi] .nilai,
 #panel-live[data-basi] .kategori { color: var(--tinta-3); }
 #panel-live[data-basi] .adegan { filter: grayscale(0.85); opacity: 0.6; }
+.nilai.tanpa-angka .satuan { display: none; }
+.nilai.tanpa-angka span:first-child {
+  display: inline-block;
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.69;     /* tinggi baris sama dengan saat ada angka, jadi kartu tidak melompat */
+}
 
 
 .instrumen h3 {
@@ -389,6 +434,12 @@ main { padding-top: 20px; padding-bottom: 12px; }
   margin-right: 6px;
 }
 
+.grafik .bidang-kosong {
+  fill: color-mix(in srgb, var(--ruas) 45%, transparent);
+  stroke: var(--garis);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 6;
+}
 .grafik .kosong {
   position: absolute;
   inset: 0;
@@ -462,8 +513,43 @@ button.utama, .tabel-alat button, .halaman button {
   color: var(--tekan);
 }
 button:disabled { opacity: 0.45; cursor: default; }
+button.utama, .saring-cepat button, .halaman button, .tabel-alat button { transition: filter 0.15s, background-color 0.15s, transform 0.1s; }
+button.utama:not(:disabled):hover { filter: brightness(1.12); }
+button.utama:not(:disabled):active { transform: translateY(1px); }
+.saring-cepat button:not([aria-pressed="true"]):hover { background: var(--ruas); }
+.halaman button:not(:disabled):hover, .tabel-alat button:not(:disabled):hover { background: color-mix(in srgb, currentColor 10%, var(--lembar)); }
 
-.saring-info { flex-basis: 100%; color: var(--tinta-2); font-size: 0.92rem; min-height: 1.4em; }
+.saring-info {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--tinta-2);
+  font-size: 0.92rem;
+  min-height: 1.9em;
+}
+.saring-catatan { flex-basis: 100%; }
+.saring-info .label {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--garis);
+  border-radius: 999px;
+  background: var(--lembar);
+  color: var(--tinta-2);
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+.saring-info .label.utama { border-color: color-mix(in srgb, var(--hijau) 45%, var(--garis)); color: var(--tinta); }
+.saring-info .label b { font-weight: 700; margin-right: 4px; font-variant-numeric: tabular-nums; }
+.saring-info .label.waspada {
+  border-color: color-mix(in srgb, var(--tunggu) 50%, var(--garis));
+  background: color-mix(in srgb, var(--tunggu) 10%, var(--lembar));
+  color: var(--tinta);
+  cursor: help;
+}
 .saring-info button.tautan { font-weight: 600; margin-left: 4px; }
 
 /* ---------- Blok grafik histori ---------- */
@@ -614,7 +700,30 @@ td.kosong-tabel { text-align: center; color: var(--tinta-2); padding: 36px 22px;
 
 .halaman { flex-wrap: wrap; gap: 10px 12px; }
 
-.ringkas-firebase { color: var(--tinta-2); margin-bottom: 12px; }
+.statistik {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+.statistik > div { padding: 16px 22px; min-width: 0; }
+.statistik > div + div { border-left: 1px solid var(--garis); }
+.statistik dt { color: var(--tinta-2); font-size: 0.875rem; font-weight: 500; }
+.statistik dd {
+  font-family: var(--huruf-angka);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.statistik span, .statistik a { font-size: 0.85rem; color: var(--tinta-3); }
+.statistik a { color: var(--tekan); font-weight: 600; }
+@media (max-width: 560px) {
+  .statistik { grid-template-columns: 1fr; }
+  .statistik > div + div { border-left: 0; border-top: 1px solid var(--garis); }
+  .statistik > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 12px 16px; }
+  .statistik dt { flex-basis: 100%; }
+  .statistik dd { font-size: 1.6rem; }
+}
 
 .blok-rusak { margin-top: 18px; }
 .blok-rusak summary {
@@ -703,7 +812,26 @@ button.tautan {
 
 /* ---------- Kaki ---------- */
 
-.kaki { color: var(--tinta-2); font-size: 0.875rem; padding-top: 8px; padding-bottom: 36px; }
+.kaki {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px 32px;
+  margin-top: 28px;
+  padding-top: 22px;
+  padding-bottom: 40px;
+  background: linear-gradient(var(--garis), var(--garis)) center top / calc(100% - 40px) 1px no-repeat;
+  color: var(--tinta-2);
+  font-size: 0.875rem;
+}
+.kaki-identitas { display: flex; align-items: center; gap: 14px; }
+.kaki-logo { width: 44px; height: auto; flex: none; }
+.kaki-logo:not([src]) { visibility: hidden; }
+.kaki-judul { color: var(--tinta); font-weight: 600; font-size: 0.95rem; }
+.kaki-teknis { text-align: right; max-width: 46ch; }
+@media (max-width: 860px) { .kaki-teknis { text-align: left; } }
+@media (max-width: 560px) { .kaki { background-size: calc(100% - 28px) 1px; } }
 
 [hidden] { display: none !important; }
 
@@ -770,7 +898,7 @@ button.tautan {
         <canvas class="adegan" id="adegan-angin" aria-hidden="true"></canvas>
         <h2>Kecepatan angin</h2>
         <p class="nilai"><span id="nilai-angin">–</span> <span class="satuan">m/s</span></p>
-        <p class="kategori" id="kategori-angin">Menunggu data dari alat</p>
+        <p class="kategori" id="kategori-angin">Menunggu data dari perangkat</p>
         <div class="skala" id="skala-angin"></div>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-angin"></div>
@@ -780,7 +908,7 @@ button.tautan {
         <canvas class="adegan" id="adegan-hujan" aria-hidden="true"></canvas>
         <h2>Curah hujan hari ini</h2>
         <p class="nilai"><span id="nilai-hujan">–</span> <span class="satuan">mm</span></p>
-        <p class="kategori" id="kategori-hujan">Menunggu data dari alat</p>
+        <p class="kategori" id="kategori-hujan">Menunggu data dari perangkat</p>
         <div class="skala" id="skala-hujan"></div>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-hujan"></div>
@@ -790,7 +918,7 @@ button.tautan {
         <canvas class="adegan" id="adegan-cahaya" aria-hidden="true"></canvas>
         <h2>Intensitas cahaya</h2>
         <p class="nilai"><span id="nilai-cahaya">–</span> <span class="satuan">lux</span></p>
-        <p class="kategori" id="kategori-cahaya">Menunggu data dari alat</p>
+        <p class="kategori" id="kategori-cahaya">Menunggu data dari perangkat</p>
         <div class="skala" id="skala-cahaya"></div>
         <h3>15 menit terakhir</h3>
         <div id="grafik-live-cahaya"></div>
@@ -872,7 +1000,7 @@ button.tautan {
 
   <!-- ================= HISTORI ================= -->
   <section id="panel-histori" role="tabpanel" aria-labelledby="tab-histori" hidden>
-    <p class="ringkas-firebase" id="ringkas-firebase" aria-live="polite">Membaca isi histori di Firebase…</p>
+    <dl class="statistik lembar" id="ringkas-firebase" aria-live="polite"><div><dt>Data histori di Firebase</dt><dd>…</dd></div></dl>
     <div class="lembar">
       <div class="tabel-alat">
         <p id="tabel-info">Belum ada data.</p>
@@ -946,8 +1074,17 @@ button.tautan {
 </dialog>
 
 <footer class="kaki">
-  <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
-  <p class="versi">Versi dashboard: 22 November 2026 (revisi 4)</p>
+  <div class="kaki-identitas">
+    <img id="logo-kaki" class="kaki-logo" width="44" height="43" alt="">
+    <div>
+      <p class="kaki-judul">Smart Renewable Energy Monitoring Training Kit</p>
+      <p>Kelompok 12, Program Studi Teknologi Rekayasa Elektronika, Politeknik Negeri Lampung</p>
+    </div>
+  </div>
+  <div class="kaki-teknis">
+    <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
+    <p class="versi">Versi dashboard: 22 November 2026 (revisi 5)</p>
+  </div>
 </footer>
 
 <script type="module">
@@ -1085,6 +1222,18 @@ function namaBulan(t, tahunPanjang = true) {
   const d = new Date(t), y = String(d.getUTCFullYear());
   return `${NAMA_BULAN[d.getUTCMonth()]} ${tahunPanjang ? y : "'" + y.slice(2)}`;
 }
+// "12 November 2026"
+function tglPanjang(t) { const d = new Date(t); return `${d.getUTCDate()} ${BULAN_PANJANG[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+// "12 Nov 2026"
+function tglSedang(t) { const d = new Date(t); return `${d.getUTCDate()} ${NAMA_BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+function sudahBerapaLama(ms) {
+  const m = Math.floor(ms / MENIT);
+  if (m < 1) return "baru saja";
+  if (m < 60) return `${m} menit lalu`;
+  const j = Math.floor(m / 60);
+  if (j < 24) return `${j} jam lalu`;
+  return `${Math.floor(j / 24)} hari lalu`;
+}
 const isoTgl  = t => new Date(t).toISOString().slice(0, 10);          // untuk <input type="date">
 const dariIso = s => { const t = Date.parse(s + "T00:00:00Z"); return Number.isFinite(t) ? t : null; };
 
@@ -1188,6 +1337,15 @@ function buatGrafik(el, opsi) {
     const [t0, t1] = rentang || (data.length ? [data[0].t, data[data.length - 1].t + 1] : [0, 1]);
     batasX = [t0, t1];
 
+    // tanpa data: bidang kosong bergaris putus-putus, tanpa angka sumbu yang tertimpa tulisan
+    kosong.hidden = data.length > 0;
+    if (!data.length) {
+      buat("rect", { class: "bidang-kosong", x: M.l - 40, y: M.t, width: pw + 40, height: ph + 14, rx: 10 });
+      kosong.textContent = o.pesanKosong || "Belum ada data.";
+      gKursor = null;
+      return;
+    }
+
     let maks = o.minMaks;
     for (const d of data) if (d.v > maks) maks = d.v;
     const { langkah, atas } = skalaRapi(maks);
@@ -1242,8 +1400,6 @@ function buatGrafik(el, opsi) {
     }
 
     // --- isi
-    kosong.hidden = data.length > 0;
-    if (!data.length) { kosong.textContent = o.pesanKosong || "Belum ada data."; gKursor = null; return; }
 
     // gradasi warna: pekat di garis, memudar ke dasar
     const id = `g${nomorGrafik}`;
@@ -1388,14 +1544,41 @@ function setStatus(keadaan, teks) {
 }
 
 const pesan = new Map();
-function peringatan(id, teks, jenis = "") {
-  if (teks) pesan.set(id, { teks, jenis }); else pesan.delete(id);
+const JUDUL_NOTIS = {
+  baca: "Data tidak dapat dimuat", histori: "Histori tidak dapat dimuat", basi: "Perangkat offline",
+  rtc: "Jam perangkat tidak sesuai", demo: "Mode contoh", hapus: "Penghapusan selesai"
+};
+const IKON_NOTIS = {
+  bahaya:  '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/>',
+  waspada: '<path d="M2.5 9a14 14 0 0 1 19 0"/><path d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/><path d="M8.8 16a4.6 4.6 0 0 1 6.4 0"/><path d="M12 19.5h.01"/><path d="M3 3l18 18"/>',
+  info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.5h.01"/>',
+  sukses:  '<circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16.2 9.5"/>'
+};
+
+// isi: teks biasa, atau { teks, detail, judul }. jenis: bahaya (bawaan), waspada, info, sukses
+function peringatan(id, isi, jenis = "") {
+  if (isi) {
+    const m = typeof isi === "string" ? { teks: isi } : { ...isi };
+    m.jenis = jenis === "info" || jenis === "waspada" || jenis === "sukses" ? jenis : "bahaya";
+    m.judul = m.judul || JUDUL_NOTIS[id] || "";
+    const lama = pesan.get(id);
+    if (lama && JSON.stringify(lama) === JSON.stringify(m)) return;      // tidak berubah
+    pesan.set(id, m);
+  } else if (pesan.has(id)) pesan.delete(id);
+  else return;
+
   const kotak = $("peringatan");
-  kotak.replaceChildren(...[...pesan.values()].map(m => {
-    const p = document.createElement("p");
-    p.textContent = m.teks;
-    if (m.jenis) p.className = m.jenis;
-    return p;
+  const terbuka = new Set([...kotak.querySelectorAll("details[open]")].map(d => d.dataset.id));
+  kotak.replaceChildren(...[...pesan].map(([kunci, m]) => {
+    const el = document.createElement("div");
+    el.className = `notis notis-${m.jenis}`;
+    el.setAttribute("role", m.jenis === "bahaya" ? "alert" : "status");
+    el.innerHTML = `<span class="notis-ikon" aria-hidden="true"><svg viewBox="0 0 24 24">${IKON_NOTIS[m.jenis]}</svg></span>` +
+      `<div class="notis-isi">${m.judul ? `<p class="notis-judul">${teksAman(m.judul)}</p>` : ""}` +
+      `<p class="notis-teks">${teksAman(m.teks)}</p>` +
+      (m.detail ? `<details data-id="${kunci}"${terbuka.has(kunci) ? " open" : ""}><summary>Panduan pemeriksaan</summary>` +
+                  `<p>${teksAman(m.detail)}</p></details>` : "") + `</div>`;
+    return el;
   }));
   kotak.hidden = pesan.size === 0;
 }
@@ -1986,14 +2169,19 @@ function kosongkanSkala(s, teks) {
 // dan angka terakhir disebut sebagai "Terakhir …", supaya tidak disangka keadaan sekarang.
 function tampilkanLive() {
   for (const s of DAFTAR) {
-    if (terhubung && nilaiTerakhir) {
-      $("nilai-" + s).textContent = angkaSensor(s, nilaiTerakhir[s]);
+    const el = $("nilai-" + s);
+    const aktif = terhubung && nilaiTerakhir;
+    el.parentElement.classList.toggle("tanpa-angka", !aktif);
+    if (aktif) {
+      el.textContent = angkaSensor(s, nilaiTerakhir[s]);
       perbaruiSkala(s, nilaiTerakhir[s]);
+    } else if (nilaiTerakhir) {
+      el.textContent = "Offline";
+      const kapan = waktuTerakhir !== null ? `, ${tgl(waktuTerakhir, false)} ${jam(waktuTerakhir)}` : "";
+      kosongkanSkala(s, `Terakhir ${angkaSensor(s, nilaiTerakhir[s])} ${SENSOR[s].satuan}${kapan}`);
     } else {
-      $("nilai-" + s).textContent = "–";
-      kosongkanSkala(s, nilaiTerakhir
-        ? `Terakhir ${angkaSensor(s, nilaiTerakhir[s])} ${SENSOR[s].satuan}, alat tidak mengirim data`
-        : "Menunggu data dari alat");
+      el.textContent = "–";
+      kosongkanSkala(s, "Menunggu data dari perangkat");
     }
   }
   adegan.set(terhubung && nilaiTerakhir ? nilaiTerakhir : null);
@@ -2002,6 +2190,7 @@ function tampilkanLive() {
 function terimaSekarang(val) {
   if (!val) {
     setStatus("terputus", "Belum ada data di Firebase");
+    peringatan("basi", { judul: "Belum ada data", teks: "Firebase belum berisi data dari perangkat. Nilai akan muncul otomatis begitu perangkat mengirim data pertama." }, "waspada");
     return;
   }
   const jejak = JSON.stringify(val);
@@ -2050,25 +2239,30 @@ let basiTerakhir = null;
 function perbaruiStatus() {
   if (jejakTerakhir === null) return;
   if (terhubung && performance.now() - terimaTerakhir > BATAS_DIAM_DETIK * 1000) terhubung = false;
-  const sejak = waktuTerakhir !== null ? `${tgl(waktuTerakhir)} pukul ${jam(waktuTerakhir, true)}`
-                                       : `"${waktuMentah}" (jam alat salah)`;
+  const ada = waktuTerakhir !== null;
   if (terhubung) {
-    setStatus("terhubung", `Alat terhubung, data pukul ${jam(waktuTerakhir, true)}`);
+    setStatus("terhubung", `Online, data ${jam(waktuTerakhir, true)} WIB`);
   } else {
-    setStatus("terputus", `Alat tidak mengirim data sejak ${sejak.replace(" pukul ", " ")}`);
+    setStatus("terputus", ada ? `Offline sejak ${tglSedang(waktuTerakhir)}, ${jam(waktuTerakhir)}` : "Offline");
   }
-  const keadaan = (terhubung ? "nyala" : "mati:" + sejak) + (rtcSalah ? ":rtc" : "");
+  peringatan("basi", terhubung ? null : {
+    teks: (ada ? `Data terakhir diterima ${tglPanjang(waktuTerakhir)} pukul ${jam(waktuTerakhir, true)} WIB ` +
+                 `(${sudahBerapaLama(sekarangWIB() - waktuTerakhir)}). `
+               : `Data terakhir tercatat dengan waktu "${waktuMentah}". `) +
+          "Nilai di tab Live akan muncul otomatis begitu perangkat kembali mengirim data.",
+    detail: "Pastikan perangkat menyala dan terhubung ke WiFi. Untuk memeriksa, ketik I di Serial Monitor " +
+            "(lewat USB atau halaman web perangkat), lalu lihat status WiFi dan Firebase."
+  }, "waspada");
+  peringatan("rtc", terhubung && rtcSalah ? {
+    teks: `Perangkat mengirim waktu "${waktuMentah}". Tab Live sementara memakai jam di perangkat yang membuka halaman ini, ` +
+          "dan histori dengan waktu tidak valid ditampilkan terpisah di tab Histori.",
+    detail: "Sinkronkan jam perangkat: ketik N (sinkron dari internet) atau W (atur manual) di Serial Monitor."
+  } : null, "info");
+
+  const keadaan = (terhubung ? "nyala" : "mati:" + waktuTerakhir) + (rtcSalah ? ":rtc" : "");
   if (keadaan === basiTerakhir) return;
   basiTerakhir = keadaan;
-
   $("panel-live").toggleAttribute("data-basi", !terhubung);
-  peringatan("basi", terhubung ? null :
-    `Alat tidak mengirim data ke Firebase sejak ${sejak}. Tab Live menampilkan tanda – sampai data baru masuk. ` +
-    `Kalau alat sedang menyala, cek WiFi dan Firebase di alat: ketik I di Serial Monitor, lalu lihat baris WiFi dan Firebase.`);
-  peringatan("rtc", terhubung && rtcSalah
-    ? `Jam di alat salah (tercatat "${waktuMentah}"), jadi tab Live memakai jam perangkat ini. Data histori dengan jam salah ` +
-      `masuk ke bagian "Data dengan waktu rusak" di tab Histori. Betulkan jam alat: ketik N (sinkron internet) atau W (atur manual) di Serial Monitor.`
-    : null, "info");
   tampilkanLive();
   gambarLive();
 }
@@ -2340,18 +2534,19 @@ async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
 
   const rentangTeks = dari === sampai ? tgl(dari) : `${tgl(dari)} sampai ${tgl(sampai)}`;
   if (baris.length) {
-    const kalimat = [];
-    if (catatan) kalimat.push(catatan);
-    kalimat.push(`${baris.length.toLocaleString("id-ID")} pembacaan, ${rentangTeks}.`);
-    kalimat.push(mode === modeTabel ? `Grafik dan tabel: ${NAMA_MODE[mode]}.`
-                                    : `Grafik: ${NAMA_MODE[mode]}. Tabel: ${NAMA_MODE[modeTabel]}.`);
-    if (riwayat.jendela.daftar.length > 1) {
-      kalimat.push(`Grafik menampilkan 1 ${LAYAR[mode].satuan} per layar, geser dengan tombol panah.`);
-    }
+    const PER = { asli: "per menit", jam: "per jam", hari: "per hari", bulan: "per bulan" };
+    const label = (teks, kelas = "", judul = "") =>
+      `<span class="label${kelas ? " " + kelas : ""}"${judul ? ` title="${teksAman(judul)}"` : ""}>${teks}</span>`;
+    let html = catatan ? `<span class="saring-catatan">${teksAman(catatan)}</span>` : "";
+    html += label(`<b>${baris.length.toLocaleString("id-ID")}</b> data`, "utama");
+    html += label(teksRentang(dari, sampai + HARI));
+    html += mode === modeTabel ? label(`Grafik & tabel ${PER[mode]}`)
+                               : label(`Grafik ${PER[mode]}`) + label(`Tabel ${PER[modeTabel]}`);
     if (lonjakan) {
-      kalimat.push(`${lonjakan.toLocaleString("id-ID")} lonjakan hujan yang tidak wajar (lebih dari ${BATAS_HUJAN_PER_MENIT} mm per menit) tidak dihitung di grafik dan total.`);
+      html += label(`${lonjakan.toLocaleString("id-ID")} lonjakan hujan diabaikan`, "waspada",
+        `Kenaikan lebih dari ${BATAS_HUJAN_PER_MENIT} mm per menit dianggap gangguan sensor dan tidak dihitung di grafik dan total.`);
     }
-    info.textContent = kalimat.join(" ");
+    info.innerHTML = html;
   } else {
     info.textContent = `Tidak ada data pada ${rentangTeks}.`;
     // Bantu cari: kapan terakhir alat menyimpan data?
@@ -2536,10 +2731,13 @@ function perbaruiRusak(rusak, total) {
   dataRusak = rusak;
   totalFirebase = total;
   const n = rusak.length, benar = total - n;
-  $("ringkas-firebase").textContent = total
-    ? `Isi histori di Firebase: ${total.toLocaleString("id-ID")} data. ${benar.toLocaleString("id-ID")} waktunya benar ` +
-      `dan tampil di grafik & tabel.` + (n ? ` ${n.toLocaleString("id-ID")} waktunya rusak (misalnya tahun 2000 karena RTC error), ada di bagian paling bawah.` : "")
-    : "Histori di Firebase masih kosong.";
+  const f = v => v.toLocaleString("id-ID");
+  $("ringkas-firebase").innerHTML = total
+    ? `<div><dt>Data histori di Firebase</dt><dd>${f(total)}</dd></div>` +
+      `<div><dt>Waktu valid</dt><dd>${f(benar)}</dd><span>tampil di grafik & tabel</span></div>` +
+      `<div><dt>Waktu tidak valid</dt><dd>${f(n)}</dd>` +
+      (n ? `<a href="#blok-rusak" class="tautan-rusak">Lihat data</a>` : `<span>tidak ada</span>`) + `</div>`
+    : `<div><dt>Data histori di Firebase</dt><dd>0</dd><span>histori masih kosong</span></div>`;
   $("blok-rusak").hidden = n === 0;
   $("rusak-judul").textContent = `Data dengan waktu rusak (${n.toLocaleString("id-ID")})`;
   $("rusak-info").textContent = n > MAKS_BARIS_RUSAK
@@ -2599,7 +2797,7 @@ async function muatAwal() {
   try { terakhir = await sumber.dataTerakhir(); } catch (e) { /* tetap lanjut */ }
   if (terakhir != null && awalHari(terakhir) < hariIni) {
     $("tgl-dari").value = $("tgl-sampai").value = isoTgl(awalHari(terakhir));
-    tampilkanRiwayat({ catatan: "Hari ini belum ada data, jadi yang ditampilkan hari terakhir alat menyimpan data." });
+    tampilkanRiwayat({ catatan: "Hari ini belum ada data. Ditampilkan hari terakhir perangkat menyimpan data." });
   } else {
     setRentangCepat(0);
   }
@@ -2697,7 +2895,7 @@ async function jalankanHapus(e) {
     });
     $("dlg-hapus").close();
     peringatan("hapus", `${n.toLocaleString("id-ID")} data histori sudah dihapus dari Firebase.` +
-                        (DEMO ? " (Mode contoh: tidak ada data yang benar-benar dihapus.)" : ""), "info");
+                        (DEMO ? " Mode contoh: tidak ada data yang benar-benar dihapus." : ""), "sukses");
     setTimeout(() => peringatan("hapus", null), 10000);
     tampilkanRiwayat();
   } catch (err) {
@@ -2785,7 +2983,7 @@ function buatGudang() {
 
   g.gagal = galat => {
     // kalau pembacaan Live juga gagal, pesannya sudah tampil; jangan diulang dua kali
-    peringatan("histori", pesan.has("baca") ? null : "Data histori tidak bisa dibaca. " + jelaskanGalat(galat));
+    peringatan("histori", pesan.has("baca") ? null : jelaskanGalat(galat));
     g.siap = true;
     beres();
   };
@@ -2870,7 +3068,7 @@ async function mulaiFirebase() {
 
   onValue(ref(db, JALUR_SEKARANG),
     snap => { peringatan("baca", null); terimaSekarang(snap.val()); },
-    galat => { setStatus("terputus", "Data tidak bisa dibaca"); peringatan("baca", jelaskanGalat(galat)); });
+    galat => { setStatus("terputus", "Data tidak dapat dimuat"); peringatan("baca", jelaskanGalat(galat)); });
 
   if ($("panel-live").hidden) bukaTab(location.hash.slice(1));
 }
@@ -2899,8 +3097,8 @@ async function mulaiREST() {
       peringatan("baca", null);
       terimaSekarang(val);
     } catch (e) {
-      if (waktuTerakhir === null) setStatus("terputus", "Data tidak bisa dibaca");
-      peringatan("baca", "Data tidak bisa diambil dari Firebase. " + jelaskanGalat(e));
+      if (waktuTerakhir === null) setStatus("terputus", "Data tidak dapat dimuat");
+      peringatan("baca", "Dashboard tidak dapat mengambil data dari Firebase. " + jelaskanGalat(e));
     }
   }
 
@@ -2993,7 +3191,7 @@ function mulaiDemo() {
     { k: "20000101_000008", waktu: "2000-01-01 00:00:08", angin: 0, hujan: 0, cahaya: 34.17 },
     { k: "20473213_451600", waktu: "2047-32-13 45:16:00", angin: 0, hujan: 0, cahaya: 86.67 }
   ], 120 * 1440 + 3);
-  peringatan("demo", "Mode contoh: semua angka di halaman ini buatan, bukan dari alat. Hapus ?demo dari alamat untuk melihat data asli.", "info");
+  peringatan("demo", "Semua angka di halaman ini adalah data simulasi. Hapus ?demo dari alamat untuk melihat data perangkat.", "info");
 
   const kirim = () => {
     const t = Math.floor(sekarangWIB() / 1000) * 1000, c = contoh(t);
@@ -3016,7 +3214,7 @@ for (const s of DAFTAR) {
     sensor: s, tinggi: 150, jenis: s === "hujan" ? "tangga" : "garis", celah: 2.5 * MENIT, titikAkhir: true,
     minMaks: s === "cahaya" ? 100 : s === "angin" ? 4 : 1,
     labelWaktu: t => jam(t, true),
-    pesanKosong: "Grafik muncul setelah alat mengirim data."
+    pesanKosong: "Menunggu data dari perangkat"
   });
   grafikRiwayat[s] = buatGrafik($("grafik-" + s), {
     sensor: s, tinggi: 220, tandaSekarang: true, minMaks: s === "cahaya" ? 100 : s === "angin" ? 4 : 1,
@@ -3095,6 +3293,13 @@ $("unduh-csv").addEventListener("click", unduhCsv);
 $("hapus-buka").addEventListener("click", () => bukaHapus());
 $("hapus-rusak").addEventListener("click", () => bukaHapus({ rusak: true }));
 $("unduh-rusak").addEventListener("click", unduhCsvRusak);
+$("ringkas-firebase").addEventListener("click", e => {
+  if (!e.target.closest(".tautan-rusak")) return;
+  e.preventDefault();
+  $("blok-rusak").open = true;
+  $("blok-rusak").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+});
+{ const l = document.querySelector(".kepala .logo"), k = $("logo-kaki"); if (l && k) k.src = l.src; }
 $("form-hapus").addEventListener("submit", jalankanHapus);
 $("dlg-ketik").addEventListener("input", perbaruiTombolHapus);
 $("dlg-batal").addEventListener("click", () => $("dlg-hapus").close());

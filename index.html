@@ -478,6 +478,8 @@ main { padding-top: 20px; padding-bottom: 12px; }
   font-size: 1rem;
 }
 
+.saring-kelompok { display: flex; flex-direction: column; gap: 4px; }
+.saring-label { font-size: 0.875rem; font-weight: 500; color: var(--tinta-2); }
 .saring-cepat { display: flex; }
 .saring-cepat button {
   height: 40px;
@@ -686,6 +688,13 @@ thead th {
 }
 tbody tr + tr td { border-top: 1px solid var(--garis); }
 tbody tr:hover td { background: color-mix(in srgb, var(--kabut) 60%, transparent); }
+#tabel-histori th:nth-child(2), #tabel-histori td:nth-child(2) { text-align: left; }
+#tabel-histori .kol-pilih { width: 52px; padding: 0 0 0 22px; text-align: left; }
+#tabel-histori .kol-pilih label { display: flex; align-items: center; min-height: 40px; cursor: pointer; }
+#tabel-histori input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--hijau); cursor: pointer; }
+#tabel-histori tr.dipilih td { background: color-mix(in srgb, var(--hijau) 12%, transparent); }
+#tabel-info b { color: var(--tinta); }
+#tabel-info button.tautan { font-weight: 600; margin-left: 6px; }
 td.kosong-tabel { text-align: center; color: var(--tinta-2); padding: 36px 22px; white-space: normal; }
 
 .halaman {
@@ -854,10 +863,11 @@ button.tautan {
   .blok-grafik { padding: 16px 12px 10px; }
   .ringkas { gap: 16px; }
   .saring label { flex: 1 1 130px; }
-  .saring-cepat { flex-basis: 100%; }
+  .saring-kelompok { flex-basis: 100%; }
   .saring-cepat button { flex: 1; padding: 0 6px; }
   button.utama { flex: 1 1 100%; }
   th, td { padding: 8px 12px; }
+  #tabel-histori .kol-pilih { padding-left: 12px; width: 40px; }
   .halaman button { padding: 0 12px; }
   .tabel-alat { padding: 14px 12px; }
 }
@@ -929,24 +939,18 @@ button.tautan {
 
   <!-- ============ SARINGAN (Grafik & Histori) ============ -->
   <form class="saring" id="saring" hidden>
-    <div class="saring-cepat" role="group" aria-label="Rentang cepat">
-      <button type="button" data-cepat="0">Hari ini</button>
-      <button type="button" data-cepat="1">Kemarin</button>
-      <button type="button" data-cepat="7">7 hari</button>
-      <button type="button" data-cepat="30">30 hari</button>
-      <button type="button" data-cepat="semua">Semua</button>
+    <div class="saring-kelompok">
+      <span class="saring-label" id="label-mode">Tampilkan</span>
+      <div class="saring-cepat" role="group" aria-labelledby="label-mode">
+        <button type="button" data-mode="asli" aria-pressed="true">Per menit</button>
+        <button type="button" data-mode="jam" aria-pressed="false">Per jam</button>
+        <button type="button" data-mode="hari" aria-pressed="false">Per hari</button>
+        <button type="button" data-mode="bulan" aria-pressed="false">Per bulan</button>
+      </div>
     </div>
     <label>Dari <input type="date" id="tgl-dari" required></label>
     <label>Sampai <input type="date" id="tgl-sampai" required></label>
-    <label>Tampilkan per
-      <select id="mode">
-        <option value="auto">Otomatis</option>
-        <option value="asli">Data asli (per menit)</option>
-        <option value="jam">Jam</option>
-        <option value="hari">Hari</option>
-        <option value="bulan">Bulan</option>
-      </select>
-    </label>
+    <input type="hidden" id="mode" value="asli">
     <button type="submit" class="utama">Tampilkan</button>
     <p class="saring-info" id="saring-info" aria-live="polite"></p>
   </form>
@@ -1006,11 +1010,12 @@ button.tautan {
         <p id="tabel-info">Belum ada data.</p>
         <div class="tabel-tombol">
           <button type="button" id="unduh-csv">Unduh CSV</button>
-          <button type="button" id="hapus-buka" class="bahaya" disabled>Hapus data</button>
+          <button type="button" id="hapus-terpilih" class="bahaya" hidden>Hapus terpilih</button>
+          <button type="button" id="hapus-buka" class="bahaya" disabled title="Hapus semua data pada rentang tanggal yang dipilih">Hapus semua</button>
         </div>
       </div>
       <div class="tabel-gulung">
-        <table>
+        <table id="tabel-histori">
           <thead id="tabel-kepala"></thead>
           <tbody id="tabel-isi"></tbody>
         </table>
@@ -1083,7 +1088,7 @@ button.tautan {
   </div>
   <div class="kaki-teknis">
     <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
-    <p class="versi">Versi dashboard: 22 November 2026 (revisi 5)</p>
+    <p class="versi">Versi dashboard: 22 November 2026 (revisi 6)</p>
   </div>
 </footer>
 
@@ -2504,7 +2509,7 @@ async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
   if (dari === null || sampai === null) { info.textContent = "Isi tanggal Dari dan Sampai dulu."; return; }
   if (sampai < dari) { info.textContent = "Tanggal Sampai harus sama atau setelah tanggal Dari."; return; }
   const jumlahHari = (sampai - dari) / HARI + 1;
-  tandaiCepat(dari, sampai);
+  tandaiMode();
   if (!sumber) { info.textContent = "Masih menyambung ke Firebase. Tunggu sebentar lalu tekan Tampilkan lagi."; return; }
 
   const urutan = ++riwayat.muat;
@@ -2527,6 +2532,7 @@ async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
   // Grafik dikelompokkan supaya ringan; tabel menampilkan semua data asli kecuali dipilih lain
   const pilihan = $("mode").value, mode = pilihMode(jumlahHari);
   const modeTabel = pilihan === "auto" ? "asli" : pilihan;
+  if (!tetapHalaman || modeTabel !== riwayat.modeTabel) terpilih.clear();
   Object.assign(riwayat, { baris, mode, modeTabel, dari, sampai, halaman: tetapHalaman ? riwayat.halaman : 1 });
   riwayat.tampil = mode === "asli" ? baris : kelompokkan(baris, mode);
   riwayat.tabel = modeTabel === mode ? riwayat.tampil : modeTabel === "asli" ? baris : kelompokkan(baris, modeTabel);
@@ -2540,8 +2546,7 @@ async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
     let html = catatan ? `<span class="saring-catatan">${teksAman(catatan)}</span>` : "";
     html += label(`<b>${baris.length.toLocaleString("id-ID")}</b> data`, "utama");
     html += label(teksRentang(dari, sampai + HARI));
-    html += mode === modeTabel ? label(`Grafik & tabel ${PER[mode]}`)
-                               : label(`Grafik ${PER[mode]}`) + label(`Tabel ${PER[modeTabel]}`);
+    if (mode !== modeTabel) html += label(`Grafik ${PER[mode]}`) + label(`Tabel ${PER[modeTabel]}`);
     if (lonjakan) {
       html += label(`${lonjakan.toLocaleString("id-ID")} lonjakan hujan diabaikan`, "waspada",
         `Kenaikan lebih dari ${BATAS_HUJAN_PER_MENIT} mm per menit dianggap gangguan sensor dan tidak dihitung di grafik dan total.`);
@@ -2677,25 +2682,69 @@ function kolomTabel() {
   };
 }
 
+// ---------------- Pilih baris untuk dihapus ----------------
+// Per menit: satu baris = satu data. Per jam / hari / bulan: satu baris = semua data di periode itu.
+const terpilih = new Set();
+const idBaris = b => riwayat.modeTabel === "asli" ? "k:" + b.k : "t:" + b.t;
+
+function barisHalamanIni() {
+  const semua = riwayat.tabel, awal = (riwayat.halaman - 1) * BARIS_PER_HALAMAN, hasil = [];
+  for (let i = semua.length - 1 - awal; i >= 0 && hasil.length < BARIS_PER_HALAMAN; i--) hasil.push(semua[i]);
+  return hasil;                                  // data terbaru di atas
+}
+
+function kunciTerpilih() {
+  if (riwayat.modeTabel === "asli") return [...terpilih].map(id => id.slice(2));
+  const kunci = [];
+  for (const id of terpilih) {
+    const [a, e] = periode(+id.slice(2), riwayat.modeTabel);
+    for (const b of riwayat.baris) if (b.t >= a && b.t < a + e) kunci.push(b.k);
+  }
+  return kunci;
+}
+
+function perbaruiPilihan() {
+  const n = terpilih.size, total = riwayat.tabel.length;
+  const halaman = barisHalamanIni();
+  const dipilihDiHalaman = halaman.filter(b => terpilih.has(idBaris(b))).length;
+  const kotak = $("pilih-halaman");
+  if (kotak) {
+    kotak.checked = halaman.length > 0 && dipilihDiHalaman === halaman.length;
+    kotak.indeterminate = dipilihDiHalaman > 0 && dipilihDiHalaman < halaman.length;
+  }
+  const info = $("tabel-info");
+  if (!n) {
+    info.textContent = total ? `${total.toLocaleString("id-ID")} baris, data terbaru di atas.` : "Belum ada data.";
+  } else {
+    const isi = riwayat.modeTabel === "asli" ? "" :
+      `, berisi ${riwayat.tabel.filter(b => terpilih.has(idBaris(b))).reduce((j, b) => j + b.n, 0).toLocaleString("id-ID")} data`;
+    info.innerHTML = `<b>${n.toLocaleString("id-ID")} baris dipilih</b>${isi}. ` +
+      (n < total ? `<button type="button" class="tautan" data-pilih="semua">Pilih semua ${total.toLocaleString("id-ID")} baris</button> ` : "") +
+      `<button type="button" class="tautan" data-pilih="batal">Batalkan pilihan</button>`;
+  }
+  $("hapus-terpilih").hidden = n === 0;
+  $("hapus-terpilih").textContent = `Hapus terpilih (${n.toLocaleString("id-ID")})`;
+}
+
 function isiTabel() {
   const kol = kolomTabel(), semua = riwayat.tabel;
   const jumlahHal = Math.max(1, Math.ceil(semua.length / BARIS_PER_HALAMAN));
   riwayat.halaman = Math.min(Math.max(1, riwayat.halaman), jumlahHal);
 
-  $("tabel-kepala").innerHTML = `<tr>${kol.kepala.map(k => `<th scope="col">${k}</th>`).join("")}</tr>`;
+  $("tabel-kepala").innerHTML = `<tr><th scope="col" class="kol-pilih"><input type="checkbox" id="pilih-halaman" ` +
+    `aria-label="Pilih semua baris di halaman ini"${semua.length ? "" : " disabled"}></th>` +
+    `${kol.kepala.map(k => `<th scope="col">${k}</th>`).join("")}</tr>`;
 
-  // data terbaru di atas
-  const awal = (riwayat.halaman - 1) * BARIS_PER_HALAMAN;
-  const potong = [];
-  for (let i = semua.length - 1 - awal; i >= 0 && potong.length < BARIS_PER_HALAMAN; i--) potong.push(semua[i]);
-
+  const potong = barisHalamanIni();
   $("tabel-isi").innerHTML = potong.length
-    ? potong.map(b => `<tr>${kol.baris(b).map(c => `<td>${c}</td>`).join("")}</tr>`).join("")
-    : `<tr><td class="kosong-tabel" colspan="${kol.kepala.length}">Tidak ada data pada rentang ini. Pilih tanggal lain lalu tekan Tampilkan.</td></tr>`;
+    ? potong.map(b => {
+        const id = idBaris(b), sel = kol.baris(b), pilih = terpilih.has(id);
+        return `<tr${pilih ? ' class="dipilih"' : ""}><td class="kol-pilih"><label><input type="checkbox" data-id="${id}"` +
+               `${pilih ? " checked" : ""} aria-label="Pilih ${sel[0]}"></label></td>${sel.map(c => `<td>${c}</td>`).join("")}</tr>`;
+      }).join("")
+    : `<tr><td class="kosong-tabel" colspan="${kol.kepala.length + 1}">Tidak ada data pada rentang ini. Pilih tanggal lain lalu tekan Tampilkan.</td></tr>`;
 
-  $("tabel-info").textContent = semua.length
-    ? `${semua.length.toLocaleString("id-ID")} baris, data terbaru di atas.`
-    : "Belum ada data.";
+  perbaruiPilihan();
   $("hal-info").textContent = `Halaman ${riwayat.halaman} dari ${jumlahHal}`;
   $("hal-pertama").disabled = $("hal-sebelum").disabled = riwayat.halaman <= 1;
   $("hal-terakhir").disabled = $("hal-berikut").disabled = riwayat.halaman >= jumlahHal;
@@ -2760,47 +2809,33 @@ function unduhCsvRusak() {
   unduhTeks(isi, "data_waktu_rusak.csv");
 }
 
-let hariPertama = null;      // tanggal data paling awal, untuk tombol "Semua"
+let hariPertama = null;      // tanggal data paling awal
 
-function rentangCepat(n) {
-  const hariIni = awalHari(sekarangWIB());
-  if (n === "semua") return [hariPertama ?? hariIni, hariIni];
-  if (n === 0) return [hariIni, hariIni];
-  if (n === 1) return [hariIni - HARI, hariIni - HARI];
-  return [hariIni - (n - 1) * HARI, hariIni];
+// Tombol Per menit / Per jam / Per hari / Per bulan: menentukan detail grafik & tabel.
+// Grafik menampilkan 1 hari / 1 minggu / 1 bulan / 1 tahun per layar, lalu digeser dengan panah.
+function tandaiMode() {
+  const m = $("mode").value;
+  document.querySelectorAll("[data-mode]").forEach(t => t.setAttribute("aria-pressed", t.dataset.mode === m));
 }
 
-function tandaiCepat(dari, sampai) {
-  document.querySelectorAll("[data-cepat]").forEach(tombol => {
-    const v = tombol.dataset.cepat;
-    const [a, b] = rentangCepat(v === "semua" ? v : +v);
-    tombol.setAttribute("aria-pressed", dari === a && sampai === b);
-  });
+function pilihTampilan(mode) {
+  if ($("mode").value === mode && riwayat.dari) return;
+  $("mode").value = mode;
+  tandaiMode();
+  if ($("tgl-dari").value && $("tgl-sampai").value) tampilkanRiwayat();
 }
 
-async function setRentangCepat(n) {
-  if (n === "semua" && sumber) {
-    const t = await sumber.dataPertama();
-    hariPertama = t == null ? null : awalHari(t);
-  }
-  const [dari, sampai] = rentangCepat(n);
-  $("tgl-dari").value = isoTgl(dari);
-  $("tgl-sampai").value = isoTgl(sampai);
-  tampilkanRiwayat();
-}
-
-// Pertama kali tab Grafik/Histori dibuka: kalau hari ini belum ada data,
-// langsung tampilkan hari terakhir alat menyimpan data.
+// Pertama kali tab Grafik/Histori dibuka: rentang = semua data (data pertama sampai hari ini),
+// tampilan per menit, layar langsung ke hari terakhir yang berisi data.
 async function muatAwal() {
   const hariIni = awalHari(sekarangWIB());
-  let terakhir = null;
-  try { terakhir = await sumber.dataTerakhir(); } catch (e) { /* tetap lanjut */ }
-  if (terakhir != null && awalHari(terakhir) < hariIni) {
-    $("tgl-dari").value = $("tgl-sampai").value = isoTgl(awalHari(terakhir));
-    tampilkanRiwayat({ catatan: "Hari ini belum ada data. Ditampilkan hari terakhir perangkat menyimpan data." });
-  } else {
-    setRentangCepat(0);
-  }
+  let pertama = null;
+  try { pertama = await sumber.dataPertama(); } catch (e) { /* tetap lanjut */ }
+  hariPertama = pertama == null ? hariIni : Math.min(awalHari(pertama), hariIni);
+  $("tgl-dari").value = isoTgl(hariPertama);
+  $("tgl-sampai").value = isoTgl(hariIni);
+  tandaiMode();
+  tampilkanRiwayat();
 }
 
 // ============================================================
@@ -2836,13 +2871,13 @@ async function perbaruiAkun() {
   return email;
 }
 
-async function bukaHapus({ rusak = false } = {}) {
+async function bukaHapus({ rusak = false, pilihan = false } = {}) {
   if (!sumber || (!rusak && !riwayat.dari)) return;
-  Object.assign(hapus, { kunci: [], sibuk: false, dari: riwayat.dari, sampai: riwayat.sampai, rusak });
+  Object.assign(hapus, { kunci: [], sibuk: false, dari: riwayat.dari, sampai: riwayat.sampai, rusak, pilihan });
   $("dlg-ketik").value = "";
   $("dlg-sandi").value = "";
   pesanHapus("");
-  $("dlg-judul").textContent = rusak ? "Hapus data dengan waktu rusak" : "Hapus data histori";
+  $("dlg-judul").textContent = rusak ? "Hapus data dengan waktu rusak" : pilihan ? "Hapus data terpilih" : "Hapus semua data di rentang ini";
   $("dlg-ringkas").textContent = "Menghitung data…";
   perbaruiTombolHapus();
   $("dlg-hapus").showModal();
@@ -2851,12 +2886,22 @@ async function bukaHapus({ rusak = false } = {}) {
   const rentangTeks = hapus.dari === hapus.sampai ? `tanggal ${tgl(hapus.dari)}`
                                                   : `tanggal ${tgl(hapus.dari)} sampai ${tgl(hapus.sampai)}`;
   try {
-    hapus.kunci = rusak ? await sumber.kunciRusak() : await sumber.kunciHistori(hapus.dari, hapus.sampai + HARI - 1000);
+    hapus.kunci = rusak ? await sumber.kunciRusak()
+                : pilihan ? kunciTerpilih()
+                : await sumber.kunciHistori(hapus.dari, hapus.sampai + HARI - 1000);
     const n = hapus.kunci.length.toLocaleString("id-ID");
+    let rentangPilihan = "";
+    if (pilihan && hapus.kunci.length) {
+      const ada = new Set(hapus.kunci), t = riwayat.baris.filter(b => ada.has(b.k)).map(b => b.t);
+      const t0 = Math.min(...t), t1 = Math.max(...t);
+      rentangPilihan = t0 === t1 ? ` (${tgl(t0)} ${jam(t0, true)})` : ` (${tgl(t0)} ${jam(t0)} sampai ${tgl(t1)} ${jam(t1)})`;
+    }
     $("dlg-ringkas").textContent = !hapus.kunci.length
-      ? (rusak ? "Tidak ada data dengan waktu rusak." : `Tidak ada data histori pada ${rentangTeks}, jadi tidak ada yang bisa dihapus.`)
+      ? (rusak ? "Tidak ada data dengan waktu rusak." : pilihan ? "Tidak ada data yang dipilih."
+               : `Tidak ada data histori pada ${rentangTeks}, jadi tidak ada yang bisa dihapus.`)
       : rusak ? `${n} data dengan waktu rusak (misalnya tahun 2000 karena RTC error) akan dihapus dari Firebase. Data dengan waktu benar tidak disentuh.`
-              : `${n} data histori ${rentangTeks} akan dihapus dari Firebase.`;
+      : pilihan ? `${n} data histori yang kamu pilih${rentangPilihan} akan dihapus dari Firebase. Data lain tidak disentuh.`
+              : `Semua data histori ${rentangTeks} (${n} data) akan dihapus dari Firebase.`;
   } catch (e) {
     $("dlg-ringkas").textContent = "Jumlah data gagal dihitung. " + jelaskanGalat(e);
   }
@@ -2894,6 +2939,7 @@ async function jalankanHapus(e) {
       pesanHapus(`Menghapus ${sudah.toLocaleString("id-ID")} dari ${n.toLocaleString("id-ID")} data…`, true);
     });
     $("dlg-hapus").close();
+    if (hapus.pilihan) terpilih.clear();
     peringatan("hapus", `${n.toLocaleString("id-ID")} data histori sudah dihapus dari Firebase.` +
                         (DEMO ? " Mode contoh: tidak ada data yang benar-benar dihapus." : ""), "sukses");
     setTimeout(() => peringatan("hapus", null), 10000);
@@ -3242,11 +3288,9 @@ $("saring-info").addEventListener("click", e => {
   $("tgl-dari").value = $("tgl-sampai").value = tombol.dataset.lompat;
   tampilkanRiwayat();
 });
-document.querySelectorAll("[data-cepat]").forEach(b => b.addEventListener("click", () =>
-  setRentangCepat(b.dataset.cepat === "semua" ? "semua" : +b.dataset.cepat)));
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => pilihTampilan(b.dataset.mode)));
 $("geser-kiri").addEventListener("click", () => geser(-1));
 $("geser-kanan").addEventListener("click", () => geser(1));
-$("mode").addEventListener("change", () => { if (riwayat.dari) tampilkanRiwayat(); });
 document.addEventListener("keydown", e => {
   if ($("panel-grafik").hidden || !riwayat.dari || e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.target.closest("input, select, textarea, dialog")) return;
@@ -3291,6 +3335,26 @@ $("hal-berikut").addEventListener("click", () => { riwayat.halaman++; isiTabel()
 $("unduh-csv").addEventListener("click", unduhCsv);
 
 $("hapus-buka").addEventListener("click", () => bukaHapus());
+$("hapus-terpilih").addEventListener("click", () => bukaHapus({ pilihan: true }));
+$("tabel-kepala").addEventListener("change", e => {
+  if (e.target.id !== "pilih-halaman") return;
+  for (const b of barisHalamanIni()) e.target.checked ? terpilih.add(idBaris(b)) : terpilih.delete(idBaris(b));
+  isiTabel();
+});
+$("tabel-isi").addEventListener("change", e => {
+  const id = e.target.dataset.id;
+  if (!id) return;
+  e.target.checked ? terpilih.add(id) : terpilih.delete(id);
+  e.target.closest("tr").classList.toggle("dipilih", e.target.checked);
+  perbaruiPilihan();
+});
+$("tabel-info").addEventListener("click", e => {
+  const aksi = e.target.closest("[data-pilih]")?.dataset.pilih;
+  if (aksi === "semua") riwayat.tabel.forEach(b => terpilih.add(idBaris(b)));
+  else if (aksi === "batal") terpilih.clear();
+  else return;
+  isiTabel();
+});
 $("hapus-rusak").addEventListener("click", () => bukaHapus({ rusak: true }));
 $("unduh-rusak").addEventListener("click", unduhCsvRusak);
 $("ringkas-firebase").addEventListener("click", e => {

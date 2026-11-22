@@ -262,6 +262,7 @@ main { padding-top: 20px; padding-bottom: 12px; }
 /* angka Live yang sudah lama (alat tidak mengirim data) dibuat redup */
 #panel-live[data-basi] .nilai,
 #panel-live[data-basi] .kategori { color: var(--tinta-3); }
+#panel-live[data-basi] .adegan { filter: grayscale(0.85); opacity: 0.6; }
 
 
 .instrumen h3 {
@@ -463,7 +464,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .blok-grafik {
   background: linear-gradient(180deg, color-mix(in srgb, var(--seri) 6%, var(--lembar)) 0%, var(--lembar) 55%);
 }
-.blok-grafik:first-child { border-radius: 14px 14px 0 0; }
+.blok-grafik:first-child, .geser[hidden] + .blok-grafik { border-radius: 14px 14px 0 0; }
 .blok-grafik:last-child  { border-radius: 0 0 14px 14px; }
 .satuan-judul { font-weight: 400; color: var(--tinta-2); }
 
@@ -475,6 +476,66 @@ button:disabled { opacity: 0.45; cursor: default; }
   font-weight: 600;
   font-size: 1.25rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Geser grafik ---------- */
+
+.geser {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 14px 16px 12px;
+  background: color-mix(in srgb, var(--lembar) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--garis);
+  border-radius: 14px 14px 0 0;
+}
+.geser-tengah { min-width: 0; text-align: center; }
+.geser-judul {
+  font-family: var(--huruf-angka);
+  font-weight: 700;
+  font-size: 1.3rem;
+  line-height: 1.2;
+}
+.geser-sub { color: var(--tinta-2); font-size: 0.875rem; margin-top: 2px; }
+
+.geser-panah {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--tekan);
+  background: var(--lembar);
+  color: var(--tekan);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, transform 0.15s;
+}
+.geser-panah svg {
+  width: 22px; height: 22px;
+  fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
+}
+.geser-panah:not(:disabled):hover { background: var(--tekan); color: var(--tekan-teks); }
+.geser-panah:not(:disabled):active { transform: scale(0.94); }
+.geser-panah:disabled { border-color: var(--garis); color: var(--tinta-3); opacity: 0.6; }
+
+.peta { margin-top: 10px; cursor: pointer; touch-action: none; user-select: none; }
+.peta svg { display: block; width: 100%; }
+.peta-latar  { fill: var(--ruas); }
+.peta-batang { fill: var(--seri-data); opacity: 0.75; }
+.peta-garis  { stroke: var(--garis); stroke-width: 1.5; }
+.peta-teks   { fill: var(--tinta-3); font-size: 10.5px; font-family: var(--huruf); }
+.peta-arah   { fill: var(--tekan); opacity: 0.12; }
+.peta-kini   { fill: color-mix(in srgb, var(--langit) 20%, transparent); stroke: var(--langit); stroke-width: 2; }
+
+@media (max-width: 560px) {
+  .geser { gap: 4px 8px; padding: 12px 10px 10px; }
+  .geser-panah { width: 40px; height: 40px; }
+  .geser-judul { font-size: 1.12rem; }
 }
 
 /* ---------- Tabel ---------- */
@@ -514,6 +575,21 @@ td.kosong-tabel { text-align: center; color: var(--tinta-2); padding: 36px 22px;
   border-top: 1px solid var(--garis);
   color: var(--tinta-2);
 }
+
+.halaman { flex-wrap: wrap; gap: 10px 12px; }
+
+.ringkas-firebase { color: var(--tinta-2); margin-bottom: 12px; }
+
+.blok-rusak { margin-top: 18px; }
+.blok-rusak summary {
+  padding: 16px 22px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.blok-rusak[open] summary { border-bottom: 1px solid var(--garis); }
+.blok-rusak td:first-child { font-family: Consolas, "Courier New", monospace; font-size: 0.9rem; }
+.blok-rusak th:nth-child(-n+2), .blok-rusak td:nth-child(-n+2) { text-align: left; }
 
 /* ---------- Hapus data ---------- */
 
@@ -616,6 +692,7 @@ button.tautan {
   .saring-cepat button { flex: 1; padding: 0 6px; }
   button.utama { flex: 1 1 100%; }
   th, td { padding: 8px 12px; }
+  .halaman button { padding: 0 12px; }
   .tabel-alat { padding: 14px 12px; }
 }
 
@@ -712,6 +789,19 @@ button.tautan {
   <!-- ================= GRAFIK ================= -->
   <section id="panel-grafik" role="tabpanel" aria-labelledby="tab-grafik" hidden>
     <div class="lembar">
+      <div class="geser" id="geser" hidden>
+        <button type="button" class="geser-panah" id="geser-kiri" aria-label="Geser ke data sebelumnya">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+        </button>
+        <div class="geser-tengah">
+          <p class="geser-judul" id="geser-judul" aria-live="polite">–</p>
+          <p class="geser-sub" id="geser-sub"></p>
+          <div class="peta" id="peta" hidden><svg role="img" aria-label="Peta seluruh rentang. Klik untuk lompat ke bagian itu."></svg></div>
+        </div>
+        <button type="button" class="geser-panah" id="geser-kanan" aria-label="Geser ke data berikutnya">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>
+        </button>
+      </div>
       <div class="blok-grafik" data-sensor="angin">
         <div class="blok-kepala">
           <h2 id="judul-angin">Kecepatan angin <span class="satuan-judul">m/s</span></h2>
@@ -745,6 +835,7 @@ button.tautan {
 
   <!-- ================= HISTORI ================= -->
   <section id="panel-histori" role="tabpanel" aria-labelledby="tab-histori" hidden>
+    <p class="ringkas-firebase" id="ringkas-firebase" aria-live="polite">Membaca isi histori di Firebase…</p>
     <div class="lembar">
       <div class="tabel-alat">
         <p id="tabel-info">Belum ada data.</p>
@@ -760,11 +851,31 @@ button.tautan {
         </table>
       </div>
       <div class="halaman">
+        <button type="button" id="hal-pertama">Terbaru</button>
         <button type="button" id="hal-sebelum">Sebelumnya</button>
         <span id="hal-info">Halaman 1 dari 1</span>
         <button type="button" id="hal-berikut">Berikutnya</button>
+        <button type="button" id="hal-terakhir">Terlama</button>
       </div>
     </div>
+
+    <details class="lembar blok-rusak" id="blok-rusak" hidden>
+      <summary id="rusak-judul">Data dengan waktu rusak</summary>
+      <div class="tabel-alat">
+        <p id="rusak-info"></p>
+        <div class="tabel-tombol">
+          <button type="button" id="unduh-rusak">Unduh CSV</button>
+          <button type="button" id="hapus-rusak" class="bahaya">Hapus data rusak</button>
+        </div>
+      </div>
+      <div class="tabel-gulung">
+        <table>
+          <thead><tr><th scope="col">Kunci di Firebase</th><th scope="col">Waktu tercatat</th>
+            <th scope="col">Angin (m/s)</th><th scope="col">Hujan (mm)</th><th scope="col">Cahaya (lux)</th></tr></thead>
+          <tbody id="rusak-isi"></tbody>
+        </table>
+      </div>
+    </details>
   </section>
 
 </main>
@@ -799,7 +910,7 @@ button.tautan {
 
 <footer class="kaki">
   <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
-  <p class="versi">Versi dashboard: 22 November 2026 (revisi 2)</p>
+  <p class="versi">Versi dashboard: 22 November 2026 (revisi 3)</p>
 </footer>
 
 <script type="module">
@@ -836,7 +947,8 @@ const JALUR_HISTORI  = "/weather/histori";
 const VERSI_FIREBASE      = "10.14.0";
 const JENDELA_LIVE_MENIT  = 15;   // panjang grafik di tab Live
 const BATAS_DIAM_DETIK    = 30;   // tanpa data baru selama ini = alat terputus
-const BARIS_PER_HALAMAN   = 50;
+const BARIS_PER_HALAMAN   = 100;
+const MAKS_BARIS_RUSAK    = 300;  // baris data rusak yang ditampilkan (semuanya tetap ada di CSV)
 const KATA_HAPUS          = "HAPUS";   // harus diketik sebelum data dihapus
 
 // Tambahkan ?demo di akhir alamat untuk melihat tampilan dengan angka contoh
@@ -927,6 +1039,9 @@ function jam(t, pakaiDetik = false) {
   return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}` + (pakaiDetik ? `:${p2(d.getUTCSeconds())}` : "");
 }
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const BULAN_PANJANG = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus",
+                       "September", "Oktober", "November", "Desember"];
+const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const awalBulan = t => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
 const bulanBerikut = t => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); };
 function namaBulan(t, tahunPanjang = true) {
@@ -1773,7 +1888,8 @@ const adegan = (() => {
 
   return {
     set(nilai) {
-      Object.assign(k, { angin: nilai.angin, hujan: nilai.hujan, cahaya: nilai.cahaya, ada: true });
+      if (!nilai) Object.assign(k, { angin: 0, hujan: 0, cahaya: 0, ada: true, lajuPaksa: 0 });   // alat mati
+      else Object.assign(k, { angin: nilai.angin, hujan: nilai.hujan, cahaya: nilai.cahaya, ada: true, lajuPaksa: null });
       hitungLajuTerakhir = 0;
       if (!berjalan) gambarSemua(0);
     },
@@ -1788,9 +1904,13 @@ const adegan = (() => {
 
 const live = { angin: [], hujan: [], cahaya: [] };
 const grafikLive = {};
-let waktuTerakhir = null;      // waktu data terakhir (jam alat)
+let waktuTerakhir = null;      // waktu data terakhir (jam alat; jam perangkat ini kalau jam alat salah)
+let waktuMentah = "";          // tulisan waktu persis seperti di Firebase
+let jejakTerakhir = null;      // isi data terakhir, untuk tahu apakah ada data baru
+let nilaiTerakhir = null;      // { angin, hujan, cahaya } terakhir dari alat
 let terimaTerakhir = 0;        // kapan browser menerima data baru
 let terhubung = false;
+let rtcSalah = false;
 
 function bangunSkala(s) {
   const S = SENSOR[s], el = $("skala-" + s);
@@ -1818,71 +1938,102 @@ function perbaruiSkala(s, v) {
   $("kategori-" + s).textContent = teks;
 }
 
+function kosongkanSkala(s, teks) {
+  const el = $("skala-" + s);
+  el.querySelectorAll(".skala-ruas span").forEach(ruas => ruas.classList.remove("aktif"));
+  el.querySelector(".skala-jarum").hidden = true;
+  $("kategori-" + s).textContent = teks;
+}
+
+// Angka Live hanya tampil kalau alat sedang mengirim. Kalau tidak, tampil "–"
+// dan angka terakhir disebut sebagai "Terakhir …", supaya tidak disangka keadaan sekarang.
+function tampilkanLive() {
+  for (const s of DAFTAR) {
+    if (terhubung && nilaiTerakhir) {
+      $("nilai-" + s).textContent = angkaSensor(s, nilaiTerakhir[s]);
+      perbaruiSkala(s, nilaiTerakhir[s]);
+    } else {
+      $("nilai-" + s).textContent = "–";
+      kosongkanSkala(s, nilaiTerakhir
+        ? `Terakhir ${angkaSensor(s, nilaiTerakhir[s])} ${SENSOR[s].satuan}, alat tidak mengirim data`
+        : "Menunggu data dari alat");
+    }
+  }
+  adegan.set(terhubung && nilaiTerakhir ? nilaiTerakhir : null);
+}
+
 function terimaSekarang(val) {
   if (!val) {
     setStatus("terputus", "Belum ada data di Firebase");
     return;
   }
-  const t = uraiWaktu(val.waktu);
-  const nilai = {};
-  for (const s of DAFTAR) nilai[s] = bersih(val[SENSOR[s].kunci]);
+  const jejak = JSON.stringify(val);
+  const pertama = jejakTerakhir === null;
+  const baru = jejak !== jejakTerakhir;
+  jejakTerakhir = jejak;
+  if (!baru) { perbaruiStatus(); return; }
 
-  for (const s of DAFTAR) {
-    $("nilai-" + s).textContent = angkaSensor(s, nilai[s]);
-    perbaruiSkala(s, nilai[s]);
-  }
-  adegan.set(nilai);
+  nilaiTerakhir = {};
+  for (const s of DAFTAR) nilaiTerakhir[s] = bersih(val[SENSOR[s].kunci]);
+  waktuMentah = String(val.waktu ?? "");
 
-  if (t === null) {
-    if (waktuTerakhir === null) setStatus("terputus", "Waktu dari alat tidak terbaca");
-    return;
-  }
-  const pertama = waktuTerakhir === null;
-  const baru = t !== waktuTerakhir;
+  let t = uraiWaktu(val.waktu);
+  rtcSalah = t === null;
+  // Jam alat (RTC) salah, misalnya tahun 2000: data baru tetap dipakai dengan jam perangkat ini
+  if (t === null && !pertama) t = Math.floor(sekarangWIB() / 1000) * 1000;
 
-  if (baru) {
+  // Data dianggap dari alat yang sedang menyala kalau isinya berubah saat halaman terbuka,
+  // atau (saat halaman baru dibuka) jamnya dekat dengan jam sekarang.
+  const segar = !pertama || (t !== null && Math.abs(sekarangWIB() - t) < MENIT);
+  if (segar) { terimaTerakhir = performance.now(); terhubung = true; }
+
+  if (t !== null) {
     waktuTerakhir = t;
-    // Data pertama dianggap segar hanya kalau jamnya dekat dengan jam sekarang
-    const segar = !pertama || Math.abs(sekarangWIB() - t) < BATAS_DIAM_DETIK * 1000;
-    if (segar) { terimaTerakhir = performance.now(); terhubung = true; }
     for (const s of DAFTAR) {
       const seri = live[s];
-      if (!seri.length || t > seri[seri.length - 1].t) seri.push({ t, v: nilai[s] });
+      if (!seri.length || t > seri[seri.length - 1].t) seri.push({ t, v: nilaiTerakhir[s] });
     }
-    gambarLive();
   }
+  basiTerakhir = null;            // paksa tampilan Live & peringatan diperbarui
   perbaruiStatus();
 }
 
 function gambarLive() {
-  if (waktuTerakhir === null) return;
-  const t1 = waktuTerakhir, t0 = t1 - JENDELA_LIVE_MENIT * MENIT;
+  // Saat alat menyala, grafik mengikuti jam data. Saat mati, mengikuti jam sekarang (jadi kosong).
+  const t1 = terhubung && waktuTerakhir !== null ? waktuTerakhir : sekarangWIB();
+  const t0 = t1 - JENDELA_LIVE_MENIT * MENIT;
   for (const s of DAFTAR) {
     while (live[s].length && live[s][0].t < t0) live[s].shift();
-    grafikLive[s].setData(live[s], [t0, t1 + 20e3]);
+    grafikLive[s].setData(live[s].filter(d => d.t <= t1 + 20e3), [t0, t1 + 20e3]);
   }
 }
 
 let basiTerakhir = null;
 
 function perbaruiStatus() {
-  if (waktuTerakhir === null) return;
+  if (jejakTerakhir === null) return;
   if (terhubung && performance.now() - terimaTerakhir > BATAS_DIAM_DETIK * 1000) terhubung = false;
-  const sejak = `${tgl(waktuTerakhir)} pukul ${jam(waktuTerakhir, true)}`;
+  const sejak = waktuTerakhir !== null ? `${tgl(waktuTerakhir)} pukul ${jam(waktuTerakhir, true)}`
+                                       : `"${waktuMentah}" (jam alat salah)`;
   if (terhubung) {
     setStatus("terhubung", `Alat terhubung, data pukul ${jam(waktuTerakhir, true)}`);
   } else {
-    setStatus("terputus", `Alat tidak mengirim data sejak ${tgl(waktuTerakhir)} ${jam(waktuTerakhir, true)}`);
+    setStatus("terputus", `Alat tidak mengirim data sejak ${sejak.replace(" pukul ", " ")}`);
   }
-  // Angka Live yang sudah lama jangan sampai disangka keadaan sekarang
-  const basi = terhubung ? "" : sejak;
-  if (basi !== basiTerakhir) {
-    basiTerakhir = basi;
-    $("panel-live").toggleAttribute("data-basi", !!basi);
-    peringatan("basi", basi ? `Firebase belum menerima data baru dari alat sejak ${sejak}. Angka di tab Live adalah ` +
-      `pembacaan terakhir saat itu, bukan keadaan sekarang. Kalau alat sedang menyala, cek WiFi dan Firebase ` +
-      `di alat: ketik I di Serial Monitor, lalu lihat baris WiFi dan Firebase.` : null);
-  }
+  const keadaan = (terhubung ? "nyala" : "mati:" + sejak) + (rtcSalah ? ":rtc" : "");
+  if (keadaan === basiTerakhir) return;
+  basiTerakhir = keadaan;
+
+  $("panel-live").toggleAttribute("data-basi", !terhubung);
+  peringatan("basi", terhubung ? null :
+    `Alat tidak mengirim data ke Firebase sejak ${sejak}. Tab Live menampilkan tanda – sampai data baru masuk. ` +
+    `Kalau alat sedang menyala, cek WiFi dan Firebase di alat: ketik I di Serial Monitor, lalu lihat baris WiFi dan Firebase.`);
+  peringatan("rtc", terhubung && rtcSalah
+    ? `Jam di alat salah (tercatat "${waktuMentah}"), jadi tab Live memakai jam perangkat ini. Data histori dengan jam salah ` +
+      `masuk ke bagian "Data dengan waktu rusak" di tab Histori. Betulkan jam alat: ketik N (sinkron internet) atau W (atur manual) di Serial Monitor.`
+    : null, "info");
+  tampilkanLive();
+  gambarLive();
 }
 
 function isiAwalLive(baris) {
@@ -1899,18 +2050,175 @@ function isiAwalLive(baris) {
 // ============================================================
 
 const grafikRiwayat = {};
-const riwayat = { baris: [], tampil: [], mode: "asli", dari: 0, sampai: 0, halaman: 1, muat: 0 };
+const riwayat = { baris: [], tampil: [], mode: "asli", tabel: [], modeTabel: "asli", dari: 0, sampai: 0, halaman: 1, muat: 0,
+                  jendela: { kunci: "", daftar: [], isi: [], i: 0, lewat: 0 } };
 let sumber = null;             // { bacaHistori(dari, sampai) } diisi Firebase atau demo
 
 const NAMA_MODE = { asli: "data asli per menit", jam: "rata-rata per jam", hari: "rekap per hari", bulan: "rekap per bulan" };
 
 function pilihMode(jumlahHari) {
-  let mode = $("mode").value;
-  if (mode === "auto") mode = jumlahHari <= 1 ? "asli" : jumlahHari <= 7 ? "jam" : jumlahHari <= 92 ? "hari" : "bulan";
-  // supaya grafik tetap ringan: per menit paling lama 7 hari, per jam paling lama 62 hari
-  if (mode === "asli" && jumlahHari > 7) mode = "jam";
-  if (mode === "jam" && jumlahHari > 62) mode = "hari";
-  return mode;
+  const mode = $("mode").value;
+  if (mode !== "auto") return mode;
+  return jumlahHari <= 1 ? "asli" : jumlahHari <= 7 ? "jam" : "hari";
+}
+
+// ---------------- Geser grafik kiri / kanan ----------------
+// Rentang panjang dibagi jadi beberapa layar supaya grafik tetap rapi:
+// data asli 1 hari per layar, per jam 1 minggu, per hari 1 bulan, per bulan 1 tahun.
+const LAYAR = {
+  asli:  { hari: 1,   satuan: "hari",   awal: awalHari, berikut: t => t + HARI },
+  jam:   { hari: 7,   satuan: "minggu", awal: t => awalHari(t) - ((new Date(t).getUTCDay() + 6) % 7) * HARI,
+           berikut: t => t + 7 * HARI },                                     // Senin sampai Minggu
+  hari:  { hari: 31,  satuan: "bulan",  awal: awalBulan, berikut: bulanBerikut },
+  bulan: { hari: 366, satuan: "tahun",  awal: t => Date.UTC(new Date(t).getUTCFullYear(), 0, 1),
+           berikut: t => Date.UTC(new Date(t).getUTCFullYear() + 1, 0, 1) }
+};
+
+function bagiLayar(dari, akhir, mode) {           // akhir tidak termasuk
+  const L = LAYAR[mode];
+  if ((akhir - dari) / HARI <= L.hari) return [[dari, akhir]];
+  const hasil = [];
+  for (let a = L.awal(dari); a < akhir; a = L.berikut(a)) hasil.push([Math.max(a, dari), Math.min(L.berikut(a), akhir)]);
+  return hasil;
+}
+
+// "Senin, 9 November 2026", "November 2026", "16–22 Nov 2026", "25 Nov 2025 – 22 Nov 2026"
+function teksRentang(a, b) {
+  const da = new Date(a), db = new Date(b - 1);
+  const [ha, ba, ta] = [da.getUTCDate(), da.getUTCMonth(), da.getUTCFullYear()];
+  const [hb, bb, tb] = [db.getUTCDate(), db.getUTCMonth(), db.getUTCFullYear()];
+  if (b - a === HARI) return `${NAMA_HARI[da.getUTCDay()]}, ${ha} ${BULAN_PANJANG[ba]} ${ta}`;
+  if (a === awalBulan(a) && b === bulanBerikut(a)) return `${BULAN_PANJANG[ba]} ${ta}`;
+  if (a === Date.UTC(ta, 0, 1) && b === Date.UTC(ta + 1, 0, 1)) return `Tahun ${ta}`;
+  if (ta === tb && ba === bb) return `${ha}–${hb} ${BULAN_PANJANG[ba]} ${ta}`;
+  if (ta === tb) return `${ha} ${NAMA_BULAN[ba]} – ${hb} ${NAMA_BULAN[bb]} ${ta}`;
+  return `${ha} ${NAMA_BULAN[ba]} ${ta} – ${hb} ${NAMA_BULAN[bb]} ${tb}`;
+}
+
+function siapkanLayar(tetap) {
+  const J = riwayat.jendela, { dari, sampai, mode, baris } = riwayat;
+  const kunci = `${dari}|${sampai}|${mode}`;
+  const daftar = bagiLayar(dari, sampai + HARI, mode);
+  const isi = daftar.map(() => 0);
+  let j = 0;
+  for (const b of baris) {                         // baris & daftar sama-sama urut waktu
+    while (j < daftar.length - 1 && b.t >= daftar[j][1]) j++;
+    if (b.t >= daftar[j][0] && b.t < daftar[j][1]) isi[j]++;
+  }
+  const lama = J.kunci === kunci && tetap ? J.i : null;
+  let i = daftar.length - 1;
+  while (i > 0 && !isi[i]) i--;
+  if (!isi[i]) i = daftar.length - 1;
+  Object.assign(J, { kunci, daftar, isi, i: lama ?? i, lewat: 0 });
+}
+
+function layarTetangga(arah) {                     // layar berisi data terdekat ke kiri (-1) / kanan (+1)
+  const { isi, i } = riwayat.jendela;
+  for (let j = i + arah; j >= 0 && j < isi.length; j += arah) if (isi[j] > 0) return j;
+  return -1;
+}
+
+function keLayar(i, arah = 0) {
+  const J = riwayat.jendela;
+  if (i < 0 || i >= J.daftar.length || i === J.i) return;
+  J.lewat = arah ? Math.abs(i - J.i) - 1 : 0;
+  J.i = i;
+  gambarRiwayat();
+  isiRingkasan();
+  if (arah && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.querySelectorAll("#panel-grafik .grafik svg").forEach(el =>
+      el.animate([{ transform: `translateX(${arah * 28}px)`, opacity: 0.25 }, { transform: "none", opacity: 1 }],
+                 { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" }));
+  }
+}
+
+function geser(arah) { keLayar(layarTetangga(arah), arah); }
+
+function perbaruiGeser() {
+  const J = riwayat.jendela, [a, b] = J.daftar[J.i], banyak = J.daftar.length > 1;
+  const n = J.isi[J.i], satuan = LAYAR[riwayat.mode].satuan;
+  $("geser").hidden = false;
+  $("geser-judul").textContent = teksRentang(a, b);
+  const sub = [n ? `${n.toLocaleString("id-ID")} data` : "Tidak ada data"];
+  if (banyak) sub.push(`${satuan[0].toUpperCase() + satuan.slice(1)} ke-${J.i + 1} dari ${J.daftar.length}`);
+  if (J.lewat > 0) sub.push(`melewati ${J.lewat} ${satuan} tanpa data`);
+  $("geser-sub").textContent = sub.join(", ");
+  const kiri = layarTetangga(-1), kanan = layarTetangga(1);
+  $("geser-kiri").disabled = kiri < 0;
+  $("geser-kanan").disabled = kanan < 0;
+  $("geser-kiri").title = kiri < 0 ? "Tidak ada data sebelum ini" : `Lihat ${teksRentang(...J.daftar[kiri])} (tombol ←)`;
+  $("geser-kanan").title = kanan < 0 ? "Tidak ada data setelah ini" : `Lihat ${teksRentang(...J.daftar[kanan])} (tombol →)`;
+  $("geser").classList.toggle("tunggal", !banyak);
+  $("peta").hidden = !banyak;
+  if (banyak) gambarPeta();
+}
+
+// Peta kecil seluruh rentang: tinggi batang = banyak data, kotak biru = bagian yang sedang tampil
+const peta = { lebar: 0, fx: null, t0: 0, t1: 0, kotakArah: null };
+
+function gambarPeta() {
+  const el = $("peta"), svg = el.querySelector("svg");
+  const lebar = el.clientWidth;
+  if (!lebar) return;
+  const J = riwayat.jendela, t0 = riwayat.dari, t1 = riwayat.sampai + HARI;
+  const tinggi = 52, atas = 4, ph = 30, dasar = atas + ph;
+  const fx = t => ((t - t0) / (t1 - t0)) * lebar;
+  Object.assign(peta, { lebar, fx, t0, t1 });
+  svg.setAttribute("viewBox", `0 0 ${lebar} ${tinggi}`);
+  svg.setAttribute("height", tinggi);
+  svg.replaceChildren();
+  const buat = (nama, atribut) => {
+    const n = document.createElementNS(NS, nama);
+    for (const k in atribut) n.setAttribute(k, atribut[k]);
+    svg.appendChild(n);
+    return n;
+  };
+
+  buat("rect", { class: "peta-latar", x: 0, y: atas, width: lebar, height: ph, rx: 6 });
+
+  // kepadatan data
+  const ember = t1 - t0 <= 14 * HARI ? JAM : HARI;
+  const hitung = new Map();
+  for (const b of riwayat.baris) { const k = Math.floor(b.t / ember) * ember; hitung.set(k, (hitung.get(k) || 0) + 1); }
+  let maks = 1;
+  for (const v of hitung.values()) if (v > maks) maks = v;
+  const lb = Math.max(1, (ember / (t1 - t0)) * lebar - (lebar / ((t1 - t0) / ember) > 4 ? 1 : 0));
+  for (const [k, v] of hitung) {
+    const h = Math.max(3, Math.sqrt(v / maks) * (ph - 6));
+    buat("rect", { class: "peta-batang", x: fx(k), y: dasar - 3 - h, width: lb, height: h });
+  }
+
+  // label waktu
+  const target = Math.max(2, Math.floor(lebar / 64));
+  const tanda = (t, label) => {
+    const x = fx(t);
+    if (x < 2 || x > lebar - 24) return;
+    buat("line", { class: "peta-garis", x1: x, x2: x, y1: dasar, y2: dasar + 4 });
+    buat("text", { class: "peta-teks", x, y: tinggi - 3, "text-anchor": "middle" }).textContent = label;
+  };
+  if (t1 - t0 > 60 * HARI) {
+    const kb = [1, 2, 3, 6, 12].find(k => (t1 - t0) / (30.44 * HARI) / k <= target) || 12;
+    let tb = awalBulan(t0);
+    if (tb < t0) tb = bulanBerikut(tb);
+    while (new Date(tb).getUTCMonth() % kb) tb = bulanBerikut(tb);
+    for (; tb <= t1; ) { tanda(tb, namaBulan(tb, false)); for (let i = 0; i < kb; i++) tb = bulanBerikut(tb); }
+  } else {
+    const lk = [1, 2, 7, 14].find(k => (t1 - t0) / (k * HARI) <= target) || 14;
+    for (let t = awalHari(t0) + HARI; t < t1; t += lk * HARI) tanda(t, tgl(t, false));
+  }
+
+  // bagian yang sedang tampil + bayangan arah kursor
+  peta.kotakArah = buat("rect", { class: "peta-arah", y: atas, height: ph, rx: 5, visibility: "hidden" });
+  const [a, b] = J.daftar[J.i];
+  const xa = fx(a), w = Math.max(8, fx(b) - xa);
+  buat("rect", { class: "peta-kini", x: Math.min(xa, lebar - w) + 1, y: atas + 1, width: w - 2, height: ph - 2, rx: 5 });
+}
+
+function layarDiPeta(e) {
+  if (!peta.fx) return -1;
+  const kotak = $("peta").getBoundingClientRect();
+  const t = peta.t0 + ((e.clientX - kotak.left) / kotak.width) * (peta.t1 - peta.t0);
+  return riwayat.jendela.daftar.findIndex(([a, b]) => t >= a && t < b);
 }
 
 // Awal dan panjang periode tempat waktu t berada
@@ -1985,17 +2293,23 @@ async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
   if (urutan !== riwayat.muat) return;        // sudah ada permintaan yang lebih baru
 
   const lonjakan = tambahKenaikanHujan(baris);
+  // Grafik dikelompokkan supaya ringan; tabel menampilkan semua data asli kecuali dipilih lain
   const pilihan = $("mode").value, mode = pilihMode(jumlahHari);
-  Object.assign(riwayat, { baris, mode, dari, sampai, halaman: tetapHalaman ? riwayat.halaman : 1 });
+  const modeTabel = pilihan === "auto" ? "asli" : pilihan;
+  Object.assign(riwayat, { baris, mode, modeTabel, dari, sampai, halaman: tetapHalaman ? riwayat.halaman : 1 });
   riwayat.tampil = mode === "asli" ? baris : kelompokkan(baris, mode);
+  riwayat.tabel = modeTabel === mode ? riwayat.tampil : modeTabel === "asli" ? baris : kelompokkan(baris, modeTabel);
+  siapkanLayar(tetapHalaman);
 
   const rentangTeks = dari === sampai ? tgl(dari) : `${tgl(dari)} sampai ${tgl(sampai)}`;
   if (baris.length) {
     const kalimat = [];
     if (catatan) kalimat.push(catatan);
-    kalimat.push(`${baris.length.toLocaleString("id-ID")} pembacaan, ${rentangTeks}. Ditampilkan sebagai ${NAMA_MODE[mode]}.`);
-    if (pilihan !== "auto" && pilihan !== mode) {
-      kalimat.push(`Rentang ini terlalu panjang untuk ${NAMA_MODE[pilihan]}, jadi diganti otomatis.`);
+    kalimat.push(`${baris.length.toLocaleString("id-ID")} pembacaan, ${rentangTeks}.`);
+    kalimat.push(mode === modeTabel ? `Grafik dan tabel: ${NAMA_MODE[mode]}.`
+                                    : `Grafik: ${NAMA_MODE[mode]}. Tabel: ${NAMA_MODE[modeTabel]}.`);
+    if (riwayat.jendela.daftar.length > 1) {
+      kalimat.push(`Grafik menampilkan 1 ${LAYAR[mode].satuan} per layar, geser dengan tombol panah.`);
     }
     if (lonjakan) {
       kalimat.push(`${lonjakan.toLocaleString("id-ID")} lonjakan hujan yang tidak wajar (lebih dari ${BATAS_HUJAN_PER_MENIT} mm per menit) tidak dihitung di grafik dan total.`);
@@ -2025,8 +2339,11 @@ function segarkanRiwayat() {
 }
 
 function gambarRiwayat() {
-  const { tampil, baris, mode, dari, sampai } = riwayat;
-  const rentang = [dari, sampai + HARI];
+  const { mode } = riwayat, J = riwayat.jendela;
+  const [a, b] = J.daftar[J.i];
+  const rentang = [a, b];
+  const tampil = riwayat.tampil.filter(x => x.t + (x.e || 1) > a && x.t < b);
+  const baris = riwayat.baris.filter(x => x.t >= a && x.t < b);
   const ember = mode === "jam" ? JAM : HARI;
   const labelWaktu = {
     asli:  t => `${tgl(t, false)} ${jam(t)}`,
@@ -2034,7 +2351,10 @@ function gambarRiwayat() {
     hari:  t => tgl(t),
     bulan: t => namaBulan(t)
   }[mode];
-  const pesanKosong = "Tidak ada data pada rentang ini. Pilih tanggal lain.";
+  const adaLain = J.isi.some(n => n > 0);
+  const pesanKosong = `Tidak ada data pada ${teksRentang(a, b)}.` +
+    (adaLain ? " Geser dengan tombol panah atau klik peta di atas." : " Pilih tanggal lain.");
+  perbaruiGeser();
   const judul = (id, teks, satuan) => { $(id).innerHTML = `${teks} <span class="satuan-judul">${satuan}</span>`; };
 
   if (mode === "hari" || mode === "bulan") {
@@ -2087,7 +2407,8 @@ function gambarRiwayat() {
 }
 
 function isiRingkasan() {
-  const b = riwayat.baris;
+  const J = riwayat.jendela, [a0, a1] = J.daftar[J.i] || [riwayat.dari, riwayat.sampai + HARI];
+  const b = riwayat.baris.filter(x => x.t >= a0 && x.t < a1);
   const rata = s => b.length ? b.reduce((j, x) => j + x[s], 0) / b.length : NaN;
   const maks = s => b.length ? b.reduce((m, x) => Math.max(m, x[s]), 0) : NaN;
   const total = b.length ? b.reduce((j, x) => j + x.naik, 0) : NaN;
@@ -2098,21 +2419,21 @@ function isiRingkasan() {
   $("ringkas-cahaya").innerHTML = butir("Rata-rata", angka(rata("cahaya"), 0)) + butir("Tertinggi", angka(maks("cahaya"), 0));
 
   // Kelengkapan: data tersimpan dibanding seharusnya (1 data per menit sampai sekarang)
-  const seharusnya = Math.max(0, (Math.min(riwayat.sampai + HARI, sekarangWIB()) - riwayat.dari) / MENIT);
+  const seharusnya = Math.max(0, (Math.min(a1, sekarangWIB()) - a0) / MENIT);
   const lengkap = seharusnya ? Math.min(100, (b.length / seharusnya) * 100) : NaN;
   $("ringkas-data").innerHTML = butir("Total", b.length.toLocaleString("id-ID")) +
     butir("Kelengkapan", Number.isFinite(lengkap) ? `${angka(lengkap, 0)}%` : "–");
 }
 
 function kolomTabel() {
-  if (riwayat.mode === "asli") {
+  if (riwayat.modeTabel === "asli") {
     return {
       kepala: ["Waktu", "Angin (m/s)", "Hujan tercatat hari itu (mm)", "Cahaya (lux)"],
       baris: b => [`${tgl(b.t)} ${jam(b.t, true)}`, angka(b.angin, 2), angka(b.hujan, 2), angka(b.cahaya, 0)],
       csv:   b => [`${tgl(b.t)} ${jam(b.t, true)}`, b.angin.toFixed(2), b.hujan.toFixed(2), b.cahaya.toFixed(2)]
     };
   }
-  const mode = riwayat.mode;
+  const mode = riwayat.modeTabel;
   const waktu = b => mode === "jam" ? `${tgl(b.t)} ${jam(b.t)} sampai ${jam(b.t + JAM)}`
                    : mode === "bulan" ? namaBulan(b.t) : tgl(b.t);
   return {
@@ -2125,7 +2446,7 @@ function kolomTabel() {
 }
 
 function isiTabel() {
-  const kol = kolomTabel(), semua = riwayat.tampil;
+  const kol = kolomTabel(), semua = riwayat.tabel;
   const jumlahHal = Math.max(1, Math.ceil(semua.length / BARIS_PER_HALAMAN));
   riwayat.halaman = Math.min(Math.max(1, riwayat.halaman), jumlahHal);
 
@@ -2144,8 +2465,8 @@ function isiTabel() {
     ? `${semua.length.toLocaleString("id-ID")} baris, data terbaru di atas.`
     : "Belum ada data.";
   $("hal-info").textContent = `Halaman ${riwayat.halaman} dari ${jumlahHal}`;
-  $("hal-sebelum").disabled = riwayat.halaman <= 1;
-  $("hal-berikut").disabled = riwayat.halaman >= jumlahHal;
+  $("hal-pertama").disabled = $("hal-sebelum").disabled = riwayat.halaman <= 1;
+  $("hal-terakhir").disabled = $("hal-berikut").disabled = riwayat.halaman >= jumlahHal;
   $("unduh-csv").disabled = semua.length === 0;
   $("hapus-buka").disabled = !riwayat.dari;      // aktif setelah ada rentang yang ditampilkan
 }
@@ -2155,13 +2476,53 @@ function unduhCsv() {
   // Pemisah titik koma dan desimal koma supaya langsung rapi di Excel berbahasa Indonesia
   const sel = v => String(v).replace(".", ",");
   const isi = [kol.kepala.join(";")]
-    .concat(riwayat.tampil.map(b => kol.csv(b).map((v, i) => (i ? sel(v) : v)).join(";")))
+    .concat(riwayat.tabel.map(b => kol.csv(b).map((v, i) => (i ? sel(v) : v)).join(";")))
     .join("\r\n");
+  unduhTeks(isi, `histori_${isoTgl(riwayat.dari)}_sd_${isoTgl(riwayat.sampai)}_${riwayat.modeTabel}.csv`);
+}
+
+function unduhTeks(isi, nama) {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(["﻿" + isi], { type: "text/csv;charset=utf-8" }));
-  a.download = `histori_${isoTgl(riwayat.dari)}_sd_${isoTgl(riwayat.sampai)}_${riwayat.mode}.csv`;
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + isi], { type: "text/csv;charset=utf-8" }));
+  a.download = nama;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------------- Data dengan waktu rusak ----------------
+// Data yang ada di Firebase tapi waktunya tidak bisa dipakai (misalnya tahun 2000 karena RTC error,
+// atau tanggal mustahil). Tidak bisa digambar di grafik, tapi tetap ditampilkan di sini apa adanya.
+
+let dataRusak = [], totalFirebase = 0;
+
+function perbaruiRusak(rusak, total) {
+  dataRusak = rusak;
+  totalFirebase = total;
+  const n = rusak.length, benar = total - n;
+  $("ringkas-firebase").textContent = total
+    ? `Isi histori di Firebase: ${total.toLocaleString("id-ID")} data. ${benar.toLocaleString("id-ID")} waktunya benar ` +
+      `dan tampil di grafik & tabel.` + (n ? ` ${n.toLocaleString("id-ID")} waktunya rusak (misalnya tahun 2000 karena RTC error), ada di bagian paling bawah.` : "")
+    : "Histori di Firebase masih kosong.";
+  $("blok-rusak").hidden = n === 0;
+  $("rusak-judul").textContent = `Data dengan waktu rusak (${n.toLocaleString("id-ID")})`;
+  $("rusak-info").textContent = n > MAKS_BARIS_RUSAK
+    ? `Menampilkan ${MAKS_BARIS_RUSAK} dari ${n.toLocaleString("id-ID")} data. Semuanya ada di file CSV.`
+    : "Waktu dan angka ditulis persis seperti yang tersimpan di Firebase.";
+  $("rusak-isi").innerHTML = rusak.slice(0, MAKS_BARIS_RUSAK).map(b =>
+    `<tr><td>${teksAman(b.k)}</td><td>${teksAman(b.waktu)}</td><td>${angka(b.angin, 2)}</td>` +
+    `<td>${angka(b.hujan, 2)}</td><td>${angka(b.cahaya, 2)}</td></tr>`).join("");
+}
+
+function teksAman(v) {
+  return String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function unduhCsvRusak() {
+  const sel = v => Number.isFinite(v) ? String(v).replace(".", ",") : "";
+  const isi = ["Kunci di Firebase;Waktu tercatat;Angin (m/s);Hujan (mm);Cahaya (lux)"]
+    .concat(dataRusak.map(b => [b.k, b.waktu, sel(b.angin), sel(b.hujan), sel(b.cahaya)].join(";")))
+    .join("\r\n");
+  unduhTeks(isi, "data_waktu_rusak.csv");
 }
 
 let hariPertama = null;      // tanggal data paling awal, untuk tombol "Semua"
@@ -2240,13 +2601,14 @@ async function perbaruiAkun() {
   return email;
 }
 
-async function bukaHapus() {
-  if (!sumber || !riwayat.dari) return;
-  Object.assign(hapus, { kunci: [], sibuk: false, dari: riwayat.dari, sampai: riwayat.sampai });
+async function bukaHapus({ rusak = false } = {}) {
+  if (!sumber || (!rusak && !riwayat.dari)) return;
+  Object.assign(hapus, { kunci: [], sibuk: false, dari: riwayat.dari, sampai: riwayat.sampai, rusak });
   $("dlg-ketik").value = "";
   $("dlg-sandi").value = "";
   pesanHapus("");
-  $("dlg-ringkas").textContent = "Menghitung data pada rentang ini…";
+  $("dlg-judul").textContent = rusak ? "Hapus data dengan waktu rusak" : "Hapus data histori";
+  $("dlg-ringkas").textContent = "Menghitung data…";
   perbaruiTombolHapus();
   $("dlg-hapus").showModal();
   perbaruiAkun();
@@ -2254,10 +2616,12 @@ async function bukaHapus() {
   const rentangTeks = hapus.dari === hapus.sampai ? `tanggal ${tgl(hapus.dari)}`
                                                   : `tanggal ${tgl(hapus.dari)} sampai ${tgl(hapus.sampai)}`;
   try {
-    hapus.kunci = await sumber.kunciHistori(hapus.dari, hapus.sampai + HARI - 1000);
-    $("dlg-ringkas").textContent = hapus.kunci.length
-      ? `${hapus.kunci.length.toLocaleString("id-ID")} data histori ${rentangTeks} akan dihapus dari Firebase.`
-      : `Tidak ada data histori pada ${rentangTeks}, jadi tidak ada yang bisa dihapus.`;
+    hapus.kunci = rusak ? await sumber.kunciRusak() : await sumber.kunciHistori(hapus.dari, hapus.sampai + HARI - 1000);
+    const n = hapus.kunci.length.toLocaleString("id-ID");
+    $("dlg-ringkas").textContent = !hapus.kunci.length
+      ? (rusak ? "Tidak ada data dengan waktu rusak." : `Tidak ada data histori pada ${rentangTeks}, jadi tidak ada yang bisa dihapus.`)
+      : rusak ? `${n} data dengan waktu rusak (misalnya tahun 2000 karena RTC error) akan dihapus dari Firebase. Data dengan waktu benar tidak disentuh.`
+              : `${n} data histori ${rentangTeks} akan dihapus dari Firebase.`;
   } catch (e) {
     $("dlg-ringkas").textContent = "Jumlah data gagal dihitung. " + jelaskanGalat(e);
   }
@@ -2357,19 +2721,25 @@ function barisDari(kunci, val) {
 // Semua histori dibaca sekali (sama seperti dashboard lama), lalu disaring di browser.
 // Dengan cara ini data lama yang kunci atau format waktunya berbeda tetap terbaca.
 function buatGudang() {
-  const g = { baris: [], siap: false };
+  const g = { baris: [], rusak: [], siap: false };
   let beres;
   g.tunggu = new Promise(r => { beres = r; });
 
   g.isi = pasangan => {                      // pasangan: daftar [kunci, isi]
-    const hasil = [];
-    let dibuang = 0;
-    for (const [k, v] of pasangan) { const b = barisDari(k, v); if (b) hasil.push(b); else dibuang++; }
+    const hasil = [], rusak = [];
+    for (const [k, v] of pasangan) {
+      const b = barisDari(k, v);
+      if (b) hasil.push(b);
+      else rusak.push({ k, waktu: v && typeof v === "object" ? String(v.waktu ?? "(tidak ada)") : "(bukan data sensor)",
+                        angin: Number(v?.anemometer), hujan: Number(v?.rain_gauge), cahaya: Number(v?.sensor_cahaya) });
+    }
     hasil.sort((a, b) => a.t - b.t);
+    rusak.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
     const pertamaKali = !g.siap;
     g.baris = hasil;
+    g.rusak = rusak;
     g.siap = true;
-    if (dibuang) console.warn(`[HISTORI] ${dibuang} data dilewati karena waktunya rusak.`);
+    perbaruiRusak(rusak, pasangan.length);
     if (hasil.length) $("tgl-dari").min = $("tgl-sampai").min = isoTgl(awalHari(hasil[0].t));
     peringatan("histori", null);
     beres();
@@ -2397,7 +2767,8 @@ function buatGudang() {
     async bacaHistori(dari, sampai) { await g.tunggu; return g.potong(dari, sampai); },
     async dataTerakhir() { await g.tunggu; return g.baris.length ? g.baris[g.baris.length - 1].t : null; },
     async dataPertama() { await g.tunggu; return g.baris.length ? g.baris[0].t : null; },
-    async kunciHistori(dari, sampai) { await g.tunggu; return g.potong(dari, sampai).map(b => b.k); }
+    async kunciHistori(dari, sampai) { await g.tunggu; return g.potong(dari, sampai).map(b => b.k); },
+    async kunciRusak() { await g.tunggu; return g.rusak.map(b => b.k); }
   };
 
   // Isi grafik Live dengan histori 15 menit sebelum data terakhir supaya tidak mulai dari kosong
@@ -2566,6 +2937,7 @@ function mulaiDemo() {
       return hasil;
     },
     async dataPertama() { return awalDemo; },
+    async kunciRusak() { return ["20000101_000000", "20000101_000008", "20473213_451600"]; },
     async dataTerakhir() {
       for (let t = Math.floor(sekarangWIB() / MENIT) * MENIT, n = 0; n < 60 * 24 * 40; t -= MENIT, n++) if (!mati(t)) return t;
       return null;
@@ -2579,6 +2951,11 @@ function mulaiDemo() {
     }
   };
 
+  perbaruiRusak([
+    { k: "20000101_000000", waktu: "2000-01-01 00:00:00", angin: 0, hujan: 0, cahaya: 0 },
+    { k: "20000101_000008", waktu: "2000-01-01 00:00:08", angin: 0, hujan: 0, cahaya: 34.17 },
+    { k: "20473213_451600", waktu: "2047-32-13 45:16:00", angin: 0, hujan: 0, cahaya: 86.67 }
+  ], 120 * 1440 + 3);
   peringatan("demo", "Mode contoh: semua angka di halaman ini buatan, bukan dari alat. Hapus ?demo dari alamat untuk melihat data asli.", "info");
 
   const kirim = () => {
@@ -2632,11 +3009,55 @@ $("saring-info").addEventListener("click", e => {
 });
 document.querySelectorAll("[data-cepat]").forEach(b => b.addEventListener("click", () =>
   setRentangCepat(b.dataset.cepat === "semua" ? "semua" : +b.dataset.cepat)));
+$("geser-kiri").addEventListener("click", () => geser(-1));
+$("geser-kanan").addEventListener("click", () => geser(1));
+$("mode").addEventListener("change", () => { if (riwayat.dari) tampilkanRiwayat(); });
+document.addEventListener("keydown", e => {
+  if ($("panel-grafik").hidden || !riwayat.dari || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.target.closest("input, select, textarea, dialog")) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); geser(e.key === "ArrowLeft" ? -1 : 1); }
+});
+{
+  // usap kiri / kanan di layar sentuh
+  let mulaiUsap = null;
+  $("panel-grafik").addEventListener("pointerdown", e => {
+    mulaiUsap = e.pointerType === "mouse" ? null : { x: e.clientX, y: e.clientY, t: performance.now() };
+  });
+  $("panel-grafik").addEventListener("pointerup", e => {
+    if (!mulaiUsap || e.target.closest(".peta")) return;
+    const dx = e.clientX - mulaiUsap.x, dy = e.clientY - mulaiUsap.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > 1.5 * Math.abs(dy) && performance.now() - mulaiUsap.t < 800) geser(dx < 0 ? 1 : -1);
+    mulaiUsap = null;
+  });
+  // peta: klik atau seret untuk lompat
+  const elPeta = $("peta");
+  let tekan = false;
+  elPeta.addEventListener("pointerdown", e => { tekan = true; elPeta.setPointerCapture(e.pointerId); keLayar(layarDiPeta(e)); });
+  elPeta.addEventListener("pointermove", e => {
+    const i = layarDiPeta(e);
+    if (tekan) { keLayar(i); return; }
+    const k = peta.kotakArah;
+    if (!k || i < 0) return;
+    const [a, b] = riwayat.jendela.daftar[i];
+    k.setAttribute("x", peta.fx(a)); k.setAttribute("width", Math.max(6, peta.fx(b) - peta.fx(a)));
+    k.setAttribute("visibility", "visible");
+    elPeta.title = teksRentang(a, b);
+  });
+  const lepas = () => { tekan = false; };
+  elPeta.addEventListener("pointerup", lepas);
+  elPeta.addEventListener("pointercancel", lepas);
+  elPeta.addEventListener("pointerleave", () => peta.kotakArah?.setAttribute("visibility", "hidden"));
+  new ResizeObserver(() => { if (!elPeta.hidden && elPeta.clientWidth !== peta.lebar) gambarPeta(); }).observe(elPeta);
+}
+$("hal-pertama").addEventListener("click", () => { riwayat.halaman = 1; isiTabel(); });
+$("hal-terakhir").addEventListener("click", () => { riwayat.halaman = Infinity; isiTabel(); });
 $("hal-sebelum").addEventListener("click", () => { riwayat.halaman--; isiTabel(); });
 $("hal-berikut").addEventListener("click", () => { riwayat.halaman++; isiTabel(); });
 $("unduh-csv").addEventListener("click", unduhCsv);
 
-$("hapus-buka").addEventListener("click", bukaHapus);
+$("hapus-buka").addEventListener("click", () => bukaHapus());
+$("hapus-rusak").addEventListener("click", () => bukaHapus({ rusak: true }));
+$("unduh-rusak").addEventListener("click", unduhCsvRusak);
 $("form-hapus").addEventListener("submit", jalankanHapus);
 $("dlg-ketik").addEventListener("input", perbaruiTombolHapus);
 $("dlg-batal").addEventListener("click", () => $("dlg-hapus").close());

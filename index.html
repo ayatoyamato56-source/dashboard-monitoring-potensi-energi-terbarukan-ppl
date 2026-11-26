@@ -335,7 +335,7 @@ main { padding-top: 20px; padding-bottom: 12px; }
 /* angka Live yang sudah lama (alat tidak mengirim data) dibuat redup */
 #panel-live[data-basi] .nilai,
 #panel-live[data-basi] .kategori { color: var(--tinta-3); }
-#panel-live[data-basi] .adegan { filter: grayscale(0.85); opacity: 0.6; }
+#panel-live[data-basi] .adegan { filter: saturate(0.55); opacity: 0.85; }   /* offline: warna diredam, suasana jam tetap terlihat */
 .nilai.tanpa-angka .satuan { display: none; }
 .nilai.tanpa-angka span:first-child {
   display: inline-block;
@@ -938,7 +938,7 @@ button.tautan {
   </section>
 
   <!-- ============ SARINGAN (Grafik & Histori) ============ -->
-  <form class="saring" id="saring" hidden>
+  <form class="saring" id="saring" novalidate hidden>
     <div class="saring-kelompok">
       <span class="saring-label" id="label-mode">Tampilkan</span>
       <div class="saring-cepat" role="group" aria-labelledby="label-mode">
@@ -1088,7 +1088,7 @@ button.tautan {
   </div>
   <div class="kaki-teknis">
     <p>Data dikirim ESP32 ke Firebase tiap 5 detik dan disimpan ke histori tiap 1 menit. Semua waktu dalam WIB.</p>
-    <p class="versi">Versi dashboard: 22 November 2026 (revisi 6)</p>
+    <p class="versi">Versi dashboard: 23 November 2026 (revisi 8)</p>
   </div>
 </footer>
 
@@ -1600,7 +1600,7 @@ function peringatan(id, isi, jenis = "") {
 
 const adegan = (() => {
   const gerakKurang = matchMedia("(prefers-reduced-motion: reduce)");
-  const k = { angin: 0, hujan: 0, cahaya: 0, laju: 0, ada: false, lajuPaksa: null };
+  const k = { angin: 0, hujan: 0, cahaya: 0, laju: 0, ada: false, lajuPaksa: null, ikutJam: false };
   const anim = { sudut: 0, waktu: 0, awanAngin: 0, awanHujan: 0 };
   let berjalan = false, lalu = 0, hitungLajuTerakhir = 0;
 
@@ -1633,8 +1633,38 @@ const adegan = (() => {
   const BUKIT_JAUH  = [hex("#1c3447"), hex("#9fd9b0")];   // malam, siang
   const BUKIT_DEKAT = [hex("#122d2b"), hex("#5cb97f")];
 
+  // Saat perangkat offline, langit mengikuti jam WIB dengan 4 suasana:
+  // pagi (langit biru muda, bawahnya jingga lembut, matahari rendah di kiri),
+  // siang (biru cerah, matahari tinggi), sore (keemasan, matahari rendah di kanan), malam (bulan & bintang).
+  // Perkiraan matahari terbit sekitar 05.50 dan terbenam sekitar 18.10 (Lampung).
+  const SUASANA_JAM = [   // [jam, warna atas, warna bawah, terang 0-1]
+    [0,     "#0b1d3a", "#21416e", 0],
+    [4.75,  "#0b1d3a", "#21416e", 0],
+    [5.75,  "#3e4f8c", "#f0a07c", 0.36],   // fajar
+    [7.0,   "#6aa8de", "#ffd8aa", 0.7],    // pagi
+    [9.5,   "#2f9cf0", "#bfe4ff", 0.92],
+    [11.0,  "#0b93f5", "#a3daff", 1],      // siang
+    [14.5,  "#0b93f5", "#a3daff", 1],
+    [16.25, "#3f7cc8", "#ffc47c", 0.8],    // sore
+    [17.75, "#4a4f8e", "#ff8a4a", 0.5],    // senja
+    [18.6,  "#1b2954", "#6c4a70", 0.2],
+    [19.4,  "#0b1d3a", "#21416e", 0],
+    [24,    "#0b1d3a", "#21416e", 0]
+  ].map(([j, a, b, t]) => [j, hex(a), hex(b), t]);
+
+  function jamWIB() { const d = new Date(sekarangWIB()); return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600; }
+  function suasanaJam() {
+    const j = jamWIB();
+    let i = 0;
+    while (i < SUASANA_JAM.length - 2 && j >= SUASANA_JAM[i + 1][0]) i++;
+    const A = SUASANA_JAM[i], B = SUASANA_JAM[i + 1];
+    let u = jepit((j - A[0]) / (B[0] - A[0]));
+    u = u * u * (3 - 2 * u);
+    return { j, atas: campur(A[1], B[1], u), bawah: campur(A[2], B[2], u), t: A[3] + (B[3] - A[3]) * u };
+  }
   // 0 = malam, 1 = siang penuh (20.000 lux ke atas)
-  const terang = () => k.ada ? jepit(Math.log10(k.cahaya + 1) / Math.log10(20001)) : 0.85;
+  const terang = () => k.ikutJam ? suasanaJam().t
+                     : k.ada ? jepit(Math.log10(k.cahaya + 1) / Math.log10(20001)) : 0.85;
 
   function warnaLangit(t) {
     return t < 0.5 ? [0, 1].map(i => campur(LANGIT.malam[i], LANGIT.senja[i], t / 0.5))
@@ -1660,7 +1690,7 @@ const adegan = (() => {
   }
 
   function langit(c, w, h, t, kelabu = 0) {
-    let [atas, bawah] = warnaLangit(t);
+    let [atas, bawah] = k.ikutJam ? (({ atas, bawah }) => [atas, bawah])(suasanaJam()) : warnaLangit(t);
     if (kelabu) { const abu = hex("#5d6f86"); atas = campur(atas, abu, kelabu); bawah = campur(bawah, abu, kelabu); }
     const g = c.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, rgb(atas)); g.addColorStop(1, rgb(bawah));
@@ -1936,8 +1966,14 @@ const adegan = (() => {
     }
 
     if (tampakMatahari > 0) {
-      const e = tinggiMatahari;
-      const sx = w * 0.28, sy = h * (0.72 - 0.46 * e), r = 11 + 6 * e;
+      let e = tinggiMatahari, sx = w * 0.28, sy = h * (0.72 - 0.46 * e);
+      if (k.ikutJam) {                  // offline: matahari bergerak dari kiri (timur) ke kanan (barat) sesuai jam
+        const u = jepit((jamWIB() - 5.85) / (18.15 - 5.85));
+        e = Math.sin(Math.PI * u);
+        sx = w * (0.1 + 0.8 * u);
+        sy = h * (0.7 - 0.5 * e);
+      }
+      const r = 11 + 6 * e;
       const inti = campur(hex("#ffe2bd"), hex("#fffbe8"), e);
       const tepi = campur(hex("#ff8f4f"), hex("#ffc83a"), e);
       c.globalAlpha = tampakMatahari;
@@ -2108,18 +2144,21 @@ const adegan = (() => {
   }
 
   document.addEventListener("visibilitychange", mulai);
+  // tanpa animasi (hemat gerak): langit offline tetap diperbarui tiap menit
+  setInterval(() => { if (k.ikutJam && !berjalan && !$("panel-live").hidden) gambarSemua(0); }, 60e3);
   gerakKurang.addEventListener?.("change", mulai);
   new ResizeObserver(() => { if (!berjalan) gambarSemua(0); }).observe($("panel-live"));
 
   return {
     set(nilai) {
-      if (!nilai) Object.assign(k, { angin: 0, hujan: 0, cahaya: 0, ada: true, lajuPaksa: 0 });   // alat mati
-      else Object.assign(k, { angin: nilai.angin, hujan: nilai.hujan, cahaya: nilai.cahaya, ada: true, lajuPaksa: null });
+      // perangkat offline: turbin diam, tanpa hujan, langit mengikuti jam
+      if (!nilai) Object.assign(k, { angin: 0, hujan: 0, cahaya: 0, ada: true, lajuPaksa: 0, ikutJam: true });
+      else Object.assign(k, { angin: nilai.angin, hujan: nilai.hujan, cahaya: nilai.cahaya, ada: true, lajuPaksa: null, ikutJam: false });
       hitungLajuTerakhir = 0;
       if (!berjalan) gambarSemua(0);
     },
     mulai,
-    uji(o) { Object.assign(k, o, { ada: true }); hitungLajuTerakhir = 0; gambarSemua(0); }   // untuk pratinjau
+    uji(o) { Object.assign(k, { ikutJam: false }, o, { ada: true }); hitungLajuTerakhir = 0; gambarSemua(0); }   // untuk pratinjau
   };
 })();
 
@@ -2504,10 +2543,17 @@ function kelompokkan(baris, mode) {
 }
 
 async function tampilkanRiwayat({ catatan = "", tetapHalaman = false } = {}) {
-  const dari = dariIso($("tgl-dari").value), sampai = dariIso($("tgl-sampai").value);
+  let dari = dariIso($("tgl-dari").value), sampai = dariIso($("tgl-sampai").value);
   const info = $("saring-info");
   if (dari === null || sampai === null) { info.textContent = "Isi tanggal Dari dan Sampai dulu."; return; }
-  if (sampai < dari) { info.textContent = "Tanggal Sampai harus sama atau setelah tanggal Dari."; return; }
+  // Dari = tanggal awal, Sampai = tanggal akhir. Kalau terbalik atau melewati hari ini, disesuaikan otomatis.
+  const hariIni = awalHari(sekarangWIB()), sesuai = [];
+  if (sampai < dari) { [dari, sampai] = [sampai, dari]; sesuai.push("Tanggal Dari dan Sampai terbalik, jadi ditukar otomatis."); }
+  if (sampai > hariIni) { sampai = hariIni; sesuai.push("Tanggal Sampai disesuaikan ke hari ini karena belum ada data setelahnya."); }
+  if (dari > hariIni) dari = hariIni;
+  $("tgl-dari").value = isoTgl(dari);
+  $("tgl-sampai").value = isoTgl(sampai);
+  if (sesuai.length) catatan = [catatan, ...sesuai].filter(Boolean).join(" ");
   const jumlahHari = (sampai - dari) / HARI + 1;
   tandaiMode();
   if (!sumber) { info.textContent = "Masih menyambung ke Firebase. Tunggu sebentar lalu tekan Tampilkan lagi."; return; }
